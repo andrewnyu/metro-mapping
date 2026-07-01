@@ -67,6 +67,15 @@ def _fallback_osm_id(cfg, place: str) -> str | None:
     return None
 
 
+def _resolved_place(cfg, place: str) -> str:
+    aliases = cfg["city"].get("place_aliases", {}) or {}
+    norm = _norm_place(place)
+    for key, value in aliases.items():
+        if norm == _norm_place(str(key)):
+            return str(value)
+    return place
+
+
 def _area_km2(gdf_or_geom) -> float:
     if isinstance(gdf_or_geom, gpd.GeoDataFrame):
         metric = gdf_or_geom.to_crs(gdf_or_geom.estimate_utm_crs())
@@ -80,6 +89,7 @@ def export_city(
     cfg, place: str, synthetic: bool = False, rebuild: bool = False,
     progress=None, osm_id: str | None = None,
 ) -> dict:
+    place = _resolved_place(cfg, place)
     cfg["city"]["place"] = place
     raw_osm_id = osm_id or _fallback_osm_id(cfg, place)
     cfg["city"]["osm_id"] = normalise_osm_id(raw_osm_id) if raw_osm_id else None

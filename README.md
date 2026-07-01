@@ -167,6 +167,8 @@ Important fields:
   search.
 - `city.osm_id_fallbacks`: hardcoded fallback IDs for known troublesome city
   names in the web app builder. `zamboanga city` currently maps to `R3617877`.
+- `city.place_aliases`: simple name aliases for ambiguous searches. `surigao`
+  currently maps to `Surigao City, Philippines`.
 - `city.study_buffer_km`: buffer around the official city boundary.
 - `grid.h3_resolution`: H3 resolution. Resolution 8 is the current city-scale
   default.
@@ -179,10 +181,16 @@ Important fields:
 - `landvalue.decay_scale_km`: distance decay scales for accessibility.
 - `landvalue.weights`: model component weights.
 - `metro.urban_percentile`: built-up threshold for metro delineation.
+- `osm.overpass_urls`: Overpass endpoints tried in order when downloading OSM
+  roads, POIs, and water.
+- `osm.point_boundary_km`: radius used when OSM has a city point but no boundary
+  polygon.
 
 ## Metro Principles
 
 - The administrative boundary is only the study envelope.
+- Downtown is detected from the smoothed built-up core, with road density
+  carrying the signal when POI data is sparse.
 - The metro area is the contiguous urban core connected to downtown.
 - Empty cells with no POIs or roads stay non-urban.
 - Large rural or island portions of a city should remain outside the metro
@@ -247,6 +255,9 @@ Keep `data/.gitkeep` and `webapp/data/.gitkeep`.
   the wrong geography.
 - OSM ID-backed caches include the ID in their cache key so exact lookups do not
   reuse fuzzy-search caches for the same city name.
+- Some OSM places only geocode to a point, not a polygon. For those, the backend
+  creates a small point-buffer boundary so the app can still build a city-scale
+  study area instead of falling back to a province.
 - `export_webapp.py` writes `<slug>_water.geojson` for the water toggle. It is
   visual context only; water cells are still excluded from the land-value model.
 - `export_webapp.py` shortens property names for browser payload size. If you

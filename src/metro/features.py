@@ -39,8 +39,17 @@ def haversine_km(lat1, lng1, lat2, lng2) -> np.ndarray:
     return 2 * EARTH_R_KM * np.arcsin(np.sqrt(d))
 
 
-def detect_cbd(cfg: Config, cells: list[str], pois: gpd.GeoDataFrame) -> tuple[float, float]:
-    """Downtown = peak of neighbourhood-smoothed weighted POI density.
+def _positive_rank01(s: pd.Series) -> pd.Series:
+    """Percentile rank for positive signal only; true zero stays zero."""
+    out = pd.Series(0.0, index=s.index)
+    pos = s > 0
+    if pos.any():
+        out.loc[pos] = s.loc[pos].rank(pct=True)
+    return out
+
+
+def detect_cbd(cfg: Config, gdf: gpd.GeoDataFrame) -> tuple[float, float]:
+    """Downtown = peak of neighbourhood-smoothed built-up intensity.
 
     Honour a manual override from config if both lat/lng are set.
     """
@@ -48,16 +57,16 @@ def detect_cbd(cfg: Config, cells: list[str], pois: gpd.GeoDataFrame) -> tuple[f
     if man.get("lat") is not None and man.get("lng") is not None:
         return float(man["lat"]), float(man["lng"])
 
-    res = cfg["grid"]["h3_resolution"]
-    weighted = pd.Series(0.0, index=cells)
-    if not pois.empty:
-        pcell = [grid.latlng_to_cell(la, ln, res) for la, ln in zip(pois["lat"], pois["lng"])]
-        w = pois.assign(cell=pcell).groupby("cell")["weight"].sum()
-        weighted = weighted.add(w, fill_value=0.0).reindex(cells).fillna(0.0)
+    cells = list(gdf.index)
+    road = _positive_rank01(gdf["road_density_km"])
+    poi = _positive_rank01(gdf["poi_weighted_density"])
+    score = 0.8 * road + 0.2 * poi
+    if score.max() <= 0:
+        return float(gdf["lat"].mean()), float(gdf["lng"].mean())
 
-    # Smooth over a 2-ring neighbourhood so a single mega-POI doesn't win.
+    # Smooth over a 2-ring neighbourhood so a single cell spike doesn't win.
     idx = {c: i for i, c in enumerate(cells)}
-    vals = weighted.values
+    vals = score.values
     smoothed = np.zeros(len(cells))
     for i, c in enumerate(cells):
         nbrs = [idx[n] for n in grid.grid_disk(c, 2) if n in idx]
@@ -99,7 +108,7 @@ def build_features(cfg: Config, city: CityData, cells: list[str] | None = None,
 
     # --- CBD distance (downtown from POI density on the land grid) -----
     _p(0.94, "Detecting downtown & computing accessibility…")
-    cbd_lat, cbd_lng = detect_cbd(cfg, list(gdf.index), city.pois)
+    cbd_lat, cbd_lng = detect_cbd(cfg, gdf)
     gdf["dist_cbd_km"] = haversine_km(gdf.lat.values, gdf.lng.values, cbd_lat, cbd_lng)
     gdf.attrs["cbd"] = (cbd_lat, cbd_lng)
 

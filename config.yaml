@@ -20,6 +20,8 @@ city:
   # Keys are normalized, so "Zamboanga City" and "zamboanga city" both match.
   osm_id_fallbacks:
     zamboanga city: "R3617877"
+  place_aliases:
+    surigao: "Surigao City, Philippines"
   # How far (km) beyond the official city boundary to study. A metro area
   # spills over its core city, so we analyse a buffered region.
   study_buffer_km: 12.0
@@ -51,6 +53,17 @@ poi_categories:
 roads:
   # OSM 'highway' classes treated as "major" (arterials people commute on).
   major_classes: ["motorway", "trunk", "primary", "secondary"]
+
+osm:
+  # OSMnx/Overpass endpoints. The first is the default; fallbacks help when a
+  # public Overpass instance is temporarily down or refusing connections.
+  requests_timeout: 45
+  overpass_rate_limit: false
+  point_boundary_km: 8.0
+  overpass_urls:
+    - "https://overpass-api.de/api"
+    - "https://overpass.kumi.systems/api"
+    - "https://overpass.openstreetmap.ru/api"
 
 # --- Water / land mask -------------------------------------------------
 # Coastal PH cities have lots of grid cells over the sea. OSM stores inland

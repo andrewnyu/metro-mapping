@@ -89,6 +89,9 @@ def _load_from_osm(cfg: Config, use_cache: bool, progress: ProgressFn = None) ->
     ox.settings.use_cache = True
     ox.settings.cache_folder = str(cfg.cache_dir / "osmnx")
     ox.settings.log_console = False
+    ox.settings.requests_timeout = int(cfg.get("osm", {}).get("requests_timeout", 45))
+    ox.settings.overpass_rate_limit = bool(cfg.get("osm", {}).get("overpass_rate_limit", False))
+    ox.settings.overpass_url = _overpass_urls(cfg)[0]
 
     slug = cfg.city_cache_slug()
     buf = cfg["city"]["study_buffer_km"]
@@ -110,12 +113,7 @@ def _load_from_osm(cfg: Config, use_cache: bool, progress: ProgressFn = None) ->
         _p(progress, 0.05, f"Geocoding {cfg['city']['place']}…")
         boundary = _geocode_boundary(ox, cfg).to_crs(WGS84)
         study = _buffer_region(boundary, buf)
-        _p(progress, 0.15, "Downloading points of interest…")
-        pois = _fetch_pois(ox, study, cfg)
-        _p(progress, 0.40, "Downloading road network (largest layer)…")
-        roads = _fetch_roads(ox, study, cfg)
-        _p(progress, 0.68, "Downloading water bodies…")
-        water = _fetch_water(ox, study, cfg)
+        pois, roads, water = _fetch_osm_layers_with_fallbacks(ox, study, cfg, progress)
         _p(progress, 0.75, "Caching city layers to disk…")
         boundary.to_parquet(f_bound)
         pois.to_parquet(f_pois)
@@ -124,6 +122,34 @@ def _load_from_osm(cfg: Config, use_cache: bool, progress: ProgressFn = None) ->
 
     major = roads[roads["is_major"]].copy()
     return CityData(boundary, study, pois, roads, major, water, source="osm")
+
+
+def _overpass_urls(cfg: Config) -> list[str]:
+    urls = cfg.get("osm", {}).get("overpass_urls") or ["https://overpass-api.de/api"]
+    return [str(u).rstrip("/") for u in urls]
+
+
+def _fetch_osm_layers_with_fallbacks(ox, study: Polygon, cfg: Config, progress: ProgressFn = None):
+    errors = []
+    urls = _overpass_urls(cfg)
+    for i, url in enumerate(urls):
+        ox.settings.overpass_url = url
+        suffix = "" if i == 0 else f" via fallback {i + 1}/{len(urls)}"
+        try:
+            _p(progress, 0.15, f"Downloading points of interest{suffix}…")
+            pois = _fetch_pois(ox, study, cfg)
+            _p(progress, 0.40, f"Downloading road network (largest layer){suffix}…")
+            roads = _fetch_roads(ox, study, cfg)
+            _p(progress, 0.68, f"Downloading water bodies{suffix}…")
+            water = _fetch_water(ox, study, cfg)
+            return pois, roads, water
+        except Exception as exc:
+            errors.append(f"{url}: {type(exc).__name__}: {exc}")
+            warnings.warn(
+                f"Overpass endpoint failed ({url}): {type(exc).__name__}: {exc}",
+                stacklevel=2,
+            )
+    raise ConnectionError("All Overpass endpoints failed. " + " | ".join(errors))
 
 
 def _geocode_boundary(ox, cfg: Config) -> gpd.GeoDataFrame:
@@ -140,7 +166,23 @@ def _geocode_boundary(ox, cfg: Config) -> gpd.GeoDataFrame:
                 f"Trying place search for {place!r}.",
                 stacklevel=2,
             )
-    return ox.geocode_to_gdf(place)
+    try:
+        return ox.geocode_to_gdf(place)
+    except TypeError:
+        gdf = ox.geocode_to_gdf(place, which_result=1).to_crs(WGS84)
+        if not gdf.empty and gdf.geometry.iloc[0].geom_type == "Point":
+            return _point_boundary(gdf, cfg)
+        raise
+
+
+def _point_boundary(gdf: gpd.GeoDataFrame, cfg: Config) -> gpd.GeoDataFrame:
+    """Create a small boundary around a geocoded city point when OSM lacks one."""
+    radius_km = float(cfg.get("osm", {}).get("point_boundary_km", 8.0))
+    metric = gdf.to_crs(gdf.estimate_utm_crs())
+    out = metric.copy()
+    out["geometry"] = metric.geometry.buffer(radius_km * 1000.0)
+    out["boundary_source"] = "point_buffer"
+    return out.to_crs(WGS84)
 
 def _buffer_region(boundary: gpd.GeoDataFrame, buffer_km: float) -> Polygon:
     """Union + buffer the boundary by buffer_km, returned in WGS84."""
@@ -151,11 +193,13 @@ def _buffer_region(boundary: gpd.GeoDataFrame, buffer_km: float) -> Polygon:
 
 def _fetch_pois(ox, study: Polygon, cfg: Config) -> gpd.GeoDataFrame:
     frames = []
+    failures = []
     for category, spec in cfg["poi_categories"].items():
         tags = dict(spec["tags"])
         try:
             gdf = ox.features_from_polygon(study, tags)
-        except Exception:
+        except Exception as exc:
+            failures.append(exc)
             continue
         if gdf.empty:
             continue
@@ -171,6 +215,8 @@ def _fetch_pois(ox, study: Polygon, cfg: Config) -> gpd.GeoDataFrame:
                 crs=WGS84,
             )
         )
+    if not frames and len(failures) == len(cfg["poi_categories"]):
+        raise failures[-1]
     if not frames:
         return gpd.GeoDataFrame(
             {"category": [], "weight": []}, geometry=[], crs=WGS84

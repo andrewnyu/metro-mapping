@@ -141,10 +141,16 @@ Expected browser behavior:
   administrative study envelope and the metro footprint. Empty cells should not
   become urban through percentile ranking; threshold among cells with positive
   built-up signal, then keep the component connected to the CBD.
+- If a city has sparse POI data, CBD detection should still use the road-density
+  core rather than falling back to an arbitrary H3 cell.
 - If you touch city search or the web app build endpoint, preserve exact OSM ID
   fallback support. `webapp/app.js` sends optional `osm_id`, `webapp/serve.py`
   forwards it, `scripts/export_webapp.py` also checks `city.osm_id_fallbacks`,
   and `src/metro/data.py` calls `ox.geocode_to_gdf(..., by_osmid=True)`.
+- Preserve place aliases and point-buffer fallback for city names that OSM does
+  not expose as boundary polygons. Example: `surigao` maps to
+  `Surigao City, Philippines`, which geocodes as a point and uses
+  `osm.point_boundary_km`.
 - If you change `config.yaml` structure, update `src/metro/config.py` only if
   the loader/helper semantics must change; most config consumers read dict keys
   directly.
@@ -161,6 +167,8 @@ Expected browser behavior:
 
 - There is no formal test suite yet.
 - First-time real OSM builds can be slow and require network access.
+- Public Overpass instances can refuse connections or hang. `config.yaml` has
+  `osm.overpass_urls` fallbacks plus a shorter request timeout.
 - CLI builds are intentionally forgiving and may fall back to synthetic data on
   OSM failures. The web city builder rejects accidental synthetic fallback for
   real city requests.
