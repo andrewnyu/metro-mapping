@@ -16,9 +16,11 @@ the feature table and app don't change.
 METRO DELINEATION
 -----------------
 A cell is "urban" if its built-up score (POI + road density) is above a
-percentile. The metro footprint = the urban cells contiguously connected to
-the downtown cell on the H3 lattice. This mirrors how urban extents and
-commuting zones are built: a thresholded core grown by adjacency.
+percentile among cells with positive built-up signal. True empty cells stay at
+zero rather than receiving a middle percentile rank. The metro footprint = the
+urban cells contiguously connected to the downtown cell on the H3 lattice. This
+mirrors how urban extents and commuting zones are built: a thresholded core
+grown by adjacency inside the larger administrative study area.
 """
 from __future__ import annotations
 
@@ -44,6 +46,15 @@ def _rank01(s: pd.Series) -> pd.Series:
     return s.rank(pct=True)
 
 
+def _positive_rank01(s: pd.Series) -> pd.Series:
+    """Percentile rank for positive signal only; true zero stays zero."""
+    out = pd.Series(0.0, index=s.index)
+    pos = s > 0
+    if pos.any():
+        out.loc[pos] = s.loc[pos].rank(pct=True)
+    return out
+
+
 # ----------------------------------------------------------------------
 def compute_land_value(cfg: Config, gdf):
     gdf = gdf.copy()
@@ -59,8 +70,8 @@ def compute_land_value(cfg: Config, gdf):
         "access_cbd": _minmax(gdf["access_cbd"]),
         "access_major_road": _minmax(gdf["access_major_road"]),
         "establishment_access": _rank01(gdf["establishment_access"]),
-        "poi_density": _rank01(gdf["poi_weighted_density"]),
-        "road_density": _rank01(gdf["road_density_km"]),
+        "poi_density": _positive_rank01(gdf["poi_weighted_density"]),
+        "road_density": _positive_rank01(gdf["road_density_km"]),
     }
     for name, comp in components.items():
         gdf[f"norm_{name}"] = comp.values
@@ -77,14 +88,15 @@ def delineate_metro(cfg: Config, gdf):
     gdf = gdf.copy()
     bw = cfg["metro"]["builtup_weights"]
     builtup = (
-        bw["poi_density"] * _rank01(gdf["poi_weighted_density"])
-        + bw["road_density"] * _rank01(gdf["road_density_km"])
+        bw["poi_density"] * _positive_rank01(gdf["poi_weighted_density"])
+        + bw["road_density"] * _positive_rank01(gdf["road_density_km"])
     )
     gdf["builtup_score"] = builtup.values
 
     pct = cfg["metro"]["urban_percentile"]
-    thresh = np.percentile(builtup, pct)
-    gdf["is_urban"] = (builtup >= thresh).values
+    positive = builtup[builtup > 0]
+    thresh = np.percentile(positive, pct) if len(positive) else np.inf
+    gdf["is_urban"] = ((builtup > 0) & (builtup >= thresh)).values
 
     # Seed = downtown cell (or nearest urban cell to it).
     cbd_lat, cbd_lng = gdf.attrs.get("cbd", (gdf.lat.mean(), gdf.lng.mean()))

@@ -151,15 +151,30 @@ async function loadCity(slug) {
   cbdMarker = new maplibregl.Marker({ element: el }).setLngLat(CITY.center).addTo(map);
 
   $("#matchNote").textContent =
-    `${CITY.n_land.toLocaleString()} land cells · ${CITY.n_water.toLocaleString()} water cells excluded · ` +
-    `metro ≈ ${Math.round(CITY.metro_km2).toLocaleString()} km²` +
-    (CITY.source === "synthetic" ? " · SYNTHETIC data" : "");
+    `${CITY.source === "synthetic" ? "Synthetic demo data" : "OpenStreetMap"} · ` +
+    `${CITY.n_pois.toLocaleString()} POIs`;
+  renderCityStats();
 
   clearSelection();
   recolor();
   map.fitBounds([[CITY.bbox[0], CITY.bbox[1]], [CITY.bbox[2], CITY.bbox[3]]],
     { padding: 30, duration: 600 });
   $("#loading").classList.add("hidden");
+}
+
+function renderCityStats() {
+  const nMetro = CITY.n_metro ?? CELLS.features.filter(f => f.properties.mt).length;
+  const stats = [
+    ["Metro cells", nMetro.toLocaleString()],
+    ["Metro area", fmt(CITY.metro_km2, 0) + " km²"],
+    ["Land cells", CITY.n_land.toLocaleString()],
+    ["Water cells", (CITY.n_water ?? 0).toLocaleString()],
+    ["City area", fmt(CITY.city_km2, 0) + " km²"],
+    ["Study area", fmt(CITY.study_km2, 0) + " km²"],
+  ];
+  $("#cityStats").innerHTML = stats.map(([k, v]) =>
+    `<div class="mini-stat"><div class="k">${k}</div><div class="v">${v}</div></div>`
+  ).join("");
 }
 
 /* ---------------- colour + values ---------------- */

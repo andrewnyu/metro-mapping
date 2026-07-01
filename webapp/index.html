@@ -6,7 +6,7 @@
 <title>Metro-Mapping — Metro area & land value</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-<link href="style.css?v=4" rel="stylesheet" />
+<link href="style.css?v=5" rel="stylesheet" />
 </head>
 <body>
 <div id="app">
@@ -32,6 +32,11 @@
         <div class="pbar"><div class="pfill" id="pfill"></div></div>
         <div class="pmsg mono" id="pmsg"></div>
       </div>
+    </div>
+
+    <div class="control">
+      <label>City metrics</label>
+      <div id="cityStats" class="stats-grid"></div>
     </div>
 
     <div class="control">
@@ -95,6 +100,6 @@
 <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

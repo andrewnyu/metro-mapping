@@ -62,6 +62,13 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
 .pmsg{font-size:11px;color:var(--muted);margin-top:5px;min-height:14px}
 .pmsg.err{color:#c5221f}
 
+/* city metrics */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.mini-stat{background:#f4f6f9;border:1px solid #edf0f3;border-radius:8px;padding:7px 8px;min-width:0}
+.mini-stat .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.45px;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-stat .v{font-family:"Roboto Mono",monospace;font-size:13px;font-weight:500;margin-top:2px}
+
 /* checkbox toggles */
 .toggles{display:flex;flex-direction:column;gap:8px}
 .chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer}

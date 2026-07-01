@@ -180,6 +180,14 @@ Important fields:
 - `landvalue.weights`: model component weights.
 - `metro.urban_percentile`: built-up threshold for metro delineation.
 
+## Metro Principles
+
+- The administrative boundary is only the study envelope.
+- The metro area is the contiguous urban core connected to downtown.
+- Empty cells with no POIs or roads stay non-urban.
+- Large rural or island portions of a city should remain outside the metro
+  unless they have enough built-up signal.
+
 ## Model Summary
 
 The current model is intentionally unsupervised and interpretable:
@@ -204,8 +212,9 @@ outliers. The final `land_value_index` is min-max scaled to 0-100.
 
 The metro footprint is a graph problem over the H3 lattice:
 
-1. Compute built-up score from POI density and road density.
-2. Mark cells above `metro.urban_percentile` as urban.
+1. Compute built-up score from POI density and road density, preserving true
+   zero values for cells with no signal.
+2. Mark positive-signal cells above `metro.urban_percentile` as urban.
 3. Find the H3 cell containing the CBD, or the nearest urban cell to it.
 4. Keep the contiguous urban component connected to that seed.
 

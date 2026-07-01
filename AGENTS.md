@@ -137,6 +137,10 @@ Expected browser behavior:
 - If you touch water masking or web exports, keep the water layer contract in
   sync: manifest city entries include `water`, and `webapp/app.js` loads it
   under the land-value cells.
+- If you touch metro delineation, preserve the distinction between the
+  administrative study envelope and the metro footprint. Empty cells should not
+  become urban through percentile ranking; threshold among cells with positive
+  built-up signal, then keep the component connected to the CBD.
 - If you touch city search or the web app build endpoint, preserve exact OSM ID
   fallback support. `webapp/app.js` sends optional `osm_id`, `webapp/serve.py`
   forwards it, `scripts/export_webapp.py` also checks `city.osm_id_fallbacks`,

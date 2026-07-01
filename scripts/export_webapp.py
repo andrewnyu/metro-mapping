@@ -67,6 +67,15 @@ def _fallback_osm_id(cfg, place: str) -> str | None:
     return None
 
 
+def _area_km2(gdf_or_geom) -> float:
+    if isinstance(gdf_or_geom, gpd.GeoDataFrame):
+        metric = gdf_or_geom.to_crs(gdf_or_geom.estimate_utm_crs())
+        return float(metric.geometry.union_all().area / 1_000_000)
+    gs = gpd.GeoSeries([gdf_or_geom], crs="EPSG:4326")
+    metric = gs.to_crs(gs.estimate_utm_crs())
+    return float(metric.iloc[0].area / 1_000_000)
+
+
 def export_city(
     cfg, place: str, synthetic: bool = False, rebuild: bool = False,
     progress=None, osm_id: str | None = None,
@@ -144,6 +153,10 @@ def export_city(
     cbd_lat, cbd_lng = gdf.attrs.get("cbd", (gdf.lat.mean(), gdf.lng.mean()))
     b = gdf.total_bounds  # minx,miny,maxx,maxy
     metro_area = metro_fc["features"][0]["properties"]["area_km2"] if metro_fc["features"] else 0
+    n_metro = int(gdf["in_metro"].sum())
+    city_area = _area_km2(city.boundary) if city.boundary is not None and not city.boundary.empty else 0
+    study_area = _area_km2(city.study_region)
+    land_area = _area_km2(gdf)
     print(f"  {place:32} land={len(gdf):>5}  metro={int(gdf['in_metro'].sum()):>4}  "
           f"water_excl={gdf.attrs.get('n_water_excluded', 0):>4}")
     return {
@@ -154,7 +167,10 @@ def export_city(
         "cells": f"{slug}_cells.geojson", "metro": f"{slug}_metro.geojson",
         "pois": f"{slug}_pois.geojson", "water": f"{slug}_water.geojson",
         "n_land": int(len(gdf)), "n_water": int(gdf.attrs.get("n_water_excluded", 0)),
-        "n_pois": int(len(city.pois)), "metro_km2": metro_area, "source": city.source,
+        "n_metro": n_metro, "n_pois": int(len(city.pois)),
+        "metro_km2": r(metro_area, 1), "city_km2": r(city_area, 1),
+        "study_km2": r(study_area, 1), "land_km2": r(land_area, 1),
+        "source": city.source,
         "source_error": city.source_error,
     }
 
