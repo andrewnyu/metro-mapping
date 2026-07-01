@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import LineString, Point, Polygon
 
-from .config import Config
+from .config import Config, normalise_osm_id
 
 WGS84 = "EPSG:4326"
 
@@ -40,6 +40,7 @@ class CityData:
     major_roads: gpd.GeoDataFrame   # subset: arterials only
     water: gpd.GeoDataFrame         # inland water polygons (lakes/rivers/bays)
     source: str                     # 'osm' or 'synthetic'
+    source_error: str | None = None # failure that caused synthetic fallback
 
     @property
     def center(self) -> tuple[float, float]:
@@ -67,13 +68,16 @@ def load_city_data(cfg: Config, use_cache: bool = True, force_synthetic: bool = 
     try:
         return _load_from_osm(cfg, use_cache=use_cache, progress=progress)
     except Exception as exc:  # network down, geocode miss, etc.
+        source_error = f"{type(exc).__name__}: {exc}"
         warnings.warn(
-            f"OSM load failed ({type(exc).__name__}: {exc}). "
+            f"OSM load failed ({source_error}). "
             "Falling back to a SYNTHETIC city so the app still runs.",
             stacklevel=2,
         )
         _p(progress, 0.4, "OSM unavailable — using synthetic city…")
-        return _synthetic_city(cfg)
+        city = _synthetic_city(cfg)
+        city.source_error = source_error
+        return city
 
 
 # ======================================================================
@@ -86,7 +90,7 @@ def _load_from_osm(cfg: Config, use_cache: bool, progress: ProgressFn = None) ->
     ox.settings.cache_folder = str(cfg.cache_dir / "osmnx")
     ox.settings.log_console = False
 
-    slug = cfg.city_slug()
+    slug = cfg.city_cache_slug()
     buf = cfg["city"]["study_buffer_km"]
     cache = cfg.cache_dir
     f_bound = cache / f"{slug}_boundary.parquet"
@@ -104,7 +108,7 @@ def _load_from_osm(cfg: Config, use_cache: bool, progress: ProgressFn = None) ->
         study = _buffer_region(boundary, buf)
     else:
         _p(progress, 0.05, f"Geocoding {cfg['city']['place']}…")
-        boundary = ox.geocode_to_gdf(cfg["city"]["place"]).to_crs(WGS84)
+        boundary = _geocode_boundary(ox, cfg).to_crs(WGS84)
         study = _buffer_region(boundary, buf)
         _p(progress, 0.15, "Downloading points of interest…")
         pois = _fetch_pois(ox, study, cfg)
@@ -121,6 +125,22 @@ def _load_from_osm(cfg: Config, use_cache: bool, progress: ProgressFn = None) ->
     major = roads[roads["is_major"]].copy()
     return CityData(boundary, study, pois, roads, major, water, source="osm")
 
+
+def _geocode_boundary(ox, cfg: Config) -> gpd.GeoDataFrame:
+    """Resolve the city boundary by exact OSM ID, then text search fallback."""
+    place = cfg["city"]["place"]
+    osm_id = cfg["city"].get("osm_id")
+    if osm_id:
+        try:
+            return ox.geocode_to_gdf(normalise_osm_id(osm_id), by_osmid=True)
+        except Exception as osmid_exc:
+            warnings.warn(
+                f"Exact OSM ID lookup failed for {osm_id!r} "
+                f"({type(osmid_exc).__name__}: {osmid_exc}). "
+                f"Trying place search for {place!r}.",
+                stacklevel=2,
+            )
+    return ox.geocode_to_gdf(place)
 
 def _buffer_region(boundary: gpd.GeoDataFrame, buffer_km: float) -> Polygon:
     """Union + buffer the boundary by buffer_km, returned in WGS84."""

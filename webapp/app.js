@@ -2,9 +2,9 @@
 const state = {
   city: null, metric: "land_value", scale: "linear",
   weights: [], selected: null, hover: null,
-  metroOnly: false, showMetro: true, showPois: false,
+  metroOnly: false, showMetro: true, showWater: true, showPois: false,
 };
-let MAN, CITY, CELLS, METRO, POIS, LV = {}, map, colorScale, chart, cbdMarker;
+let MAN, CITY, CELLS, METRO, POIS, WATER, LV = {}, map, colorScale, chart, cbdMarker;
 
 const $ = s => document.querySelector(s);
 const CAT_COLORS = {
@@ -67,6 +67,16 @@ function buildMap() {
     });
     map.addLayer({ id: "basemap", type: "raster", source: "basemap" });
 
+    map.addSource("water", { type: "geojson", data: emptyFC(), promoteId: "id" });
+    map.addLayer({
+      id: "water-fill", type: "fill", source: "water",
+      paint: { "fill-color": "#9fc5e8", "fill-opacity": 0.58 },
+    });
+    map.addLayer({
+      id: "water-line", type: "line", source: "water",
+      paint: { "line-color": "#ffffff", "line-width": 0.25, "line-opacity": 0.45 },
+    });
+
     map.addSource("cells", { type: "geojson", data: emptyFC(), promoteId: "id" });
     map.addLayer({
       id: "cells-fill", type: "fill", source: "cells",
@@ -121,15 +131,20 @@ const emptyFC = () => ({ type: "FeatureCollection", features: [] });
 async function loadCity(slug) {
   state.city = CITY = MAN.cities.find(c => c.slug === slug);
   $("#loading").classList.remove("hidden");
-  const [cells, metro, pois] = await Promise.all([
+  const waterReq = CITY.water
+    ? fetch("data/" + CITY.water).then(r => r.json()).catch(() => emptyFC())
+    : Promise.resolve(emptyFC());
+  const [cells, metro, pois, water] = await Promise.all([
     fetch("data/" + CITY.cells).then(r => r.json()),
     fetch("data/" + CITY.metro).then(r => r.json()),
     fetch("data/" + CITY.pois).then(r => r.json()),
+    waterReq,
   ]);
-  CELLS = cells; METRO = metro; POIS = pois;
+  CELLS = cells; METRO = metro; POIS = pois; WATER = water;
   map.getSource("cells").setData(CELLS);
   map.getSource("metro").setData(METRO);
   map.getSource("pois").setData(POIS);
+  map.getSource("water").setData(WATER);
 
   if (cbdMarker) cbdMarker.remove();
   const el = document.createElement("div"); el.className = "cbd-marker";
@@ -325,6 +340,11 @@ function wireControls() {
 
   $("#tglMetro").addEventListener("change", e =>
     map.setLayoutProperty("metro-line", "visibility", e.target.checked ? "visible" : "none"));
+  $("#tglWater").addEventListener("change", e => {
+    const vis = e.target.checked ? "visible" : "none";
+    map.setLayoutProperty("water-fill", "visibility", vis);
+    map.setLayoutProperty("water-line", "visibility", vis);
+  });
   $("#tglMetroOnly").addEventListener("change", e => {
     state.metroOnly = e.target.checked;
     const filt = state.metroOnly ? ["==", ["get", "mt"], 1] : null;
@@ -335,13 +355,15 @@ function wireControls() {
 
   $("#detailClose").addEventListener("click", clearSelection);
 
-  $("#addCityBtn").addEventListener("click", () => generateCity($("#cityInput").value));
-  $("#cityInput").addEventListener("keydown", e => { if (e.key === "Enter") generateCity($("#cityInput").value); });
+  $("#addCityBtn").addEventListener("click", () => generateCity($("#cityInput").value, $("#osmIdInput").value));
+  $("#cityInput").addEventListener("keydown", e => { if (e.key === "Enter") generateCity($("#cityInput").value, $("#osmIdInput").value); });
+  $("#osmIdInput").addEventListener("keydown", e => { if (e.key === "Enter") generateCity($("#cityInput").value, $("#osmIdInput").value); });
 }
 
 /* ---------------- generate a new city (backend build over SSE) ---------------- */
-function generateCity(place) {
+function generateCity(place, osmId) {
   place = (place || "").trim();
+  osmId = (osmId || "").trim();
   if (!place) return;
   const btn = $("#addCityBtn"), box = $("#buildProgress"), fill = $("#pfill"), msg = $("#pmsg");
   btn.disabled = true;
@@ -349,7 +371,9 @@ function generateCity(place) {
   fill.style.width = "2%"; msg.textContent = "Starting…";
 
   let finished = false;
-  const es = new EventSource("/api/build?place=" + encodeURIComponent(place));
+  const params = new URLSearchParams({ place });
+  if (osmId) params.set("osm_id", osmId);
+  const es = new EventSource("/api/build?" + params.toString());
   const finish = () => { finished = true; es.close(); btn.disabled = false; };
 
   es.onmessage = async ev => {
@@ -362,7 +386,11 @@ function generateCity(place) {
       MAN = await fetch("data/manifest.json?t=" + Date.now()).then(r => r.json());
       refreshCitySelect(d.city.slug);
       await loadCity(d.city.slug);
-      setTimeout(() => { box.classList.add("hidden"); $("#cityInput").value = ""; }, 1000);
+      setTimeout(() => {
+        box.classList.add("hidden");
+        $("#cityInput").value = "";
+        $("#osmIdInput").value = "";
+      }, 1000);
       finish(); return;
     }
     if (typeof d.frac === "number") {

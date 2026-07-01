@@ -48,6 +48,9 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
 .add-row{display:flex;gap:6px}
 #cityInput{flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:13px}
 #cityInput:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.osm-id-input{width:100%;margin-top:6px;padding:8px 11px;border:1px solid var(--line);
+  border-radius:10px;font:inherit;font-size:12px}
+.osm-id-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .go-btn{border:0;background:var(--accent);color:#fff;font:inherit;font-size:13px;font-weight:500;
   padding:0 14px;border-radius:10px;cursor:pointer}
 .go-btn:hover{background:#1666d0}

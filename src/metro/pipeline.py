@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import geopandas as gpd
+from shapely.geometry.base import BaseGeometry
 
 from . import features as feat
 from . import grid
@@ -18,7 +19,7 @@ from .data import CityData, load_city_data
 
 
 def features_path(cfg: Config, synthetic: bool = False) -> Path:
-    slug = cfg.city_slug()
+    slug = cfg.city_cache_slug()
     res = cfg["grid"]["h3_resolution"]
     buf = cfg["city"]["study_buffer_km"]
     tag = "_synth" if synthetic else ""
@@ -34,7 +35,22 @@ def build_features(cfg: Config, city: CityData, progress=None) -> gpd.GeoDataFra
     gdf["cbd_lng"] = cbd_lng
     gdf["n_grid_cells"] = gdf.attrs.get("n_grid_cells", len(gdf))
     gdf["n_water_excluded"] = gdf.attrs.get("n_water_excluded", 0)
+    gdf["data_source"] = city.source
+    gdf["cache_place"] = cfg["city"]["place"]
+    gdf["cache_osm_id"] = cfg["city"].get("osm_id")
     return gdf
+
+
+def _cache_matches_city(gdf: gpd.GeoDataFrame, city: CityData) -> bool:
+    """Reject old poisoned feature caches from synthetic fallback/geocode misses."""
+    if city.source == "synthetic":
+        return "data_source" in gdf.columns and bool((gdf["data_source"] == "synthetic").any())
+    if "data_source" in gdf.columns and not bool((gdf["data_source"] == city.source).all()):
+        return False
+    if gdf.empty:
+        return False
+    cache_geom: BaseGeometry = gdf.geometry.union_all()
+    return bool(cache_geom.intersects(city.study_region))
 
 
 def load_or_build_features(
@@ -46,9 +62,16 @@ def load_or_build_features(
         if progress is not None:
             progress(0.85, "Loading cached feature table…")
         gdf = gpd.read_parquet(path).set_index("h3", drop=False)
+        if not _cache_matches_city(gdf, city):
+            if progress is not None:
+                progress(0.86, "Cached features do not match this city; rebuilding…")
+            gdf = build_features(cfg, city, progress=progress)
+            if city.source == "osm" or force_synthetic:
+                gdf.to_parquet(path)
     else:
         gdf = build_features(cfg, city, progress=progress)
-        gdf.to_parquet(path)
+        if city.source == "osm" or force_synthetic:
+            gdf.to_parquet(path)
     if progress is not None:
         progress(1.0, "Ready")
     # Restore scalars into attrs for the model / reporting stages.
@@ -69,7 +92,7 @@ def run(cfg: Config, rebuild: bool = False, force_synthetic: bool = False, progr
 
 
 def output_paths(cfg: Config, synthetic: bool = False) -> dict[str, Path]:
-    slug = cfg.city_slug()
+    slug = cfg.city_cache_slug()
     res = cfg["grid"]["h3_resolution"]
     tag = "_synth" if synthetic else ""
     return {

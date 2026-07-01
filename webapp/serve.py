@@ -4,7 +4,7 @@
 Serves the static web app AND exposes a small build endpoint so you can add a
 new city straight from the browser:
 
-    GET /api/build?place=<name>[&synthetic=1]
+    GET /api/build?place=<name>[&osm_id=R123][&synthetic=1]
 
 streams Server-Sent Events with build progress, e.g.
     data: {"frac": 0.4, "msg": "Downloading road network…"}
@@ -47,6 +47,7 @@ class Handler(SimpleHTTPRequestHandler):
     def _build(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         place = (params.get("place") or [""])[0].strip()
+        osm_id = (params.get("osm_id") or [""])[0].strip() or None
         synthetic = (params.get("synthetic") or ["0"])[0] in ("1", "true")
         if not place:
             self.send_error(400, "missing 'place'")
@@ -65,6 +66,7 @@ class Handler(SimpleHTTPRequestHandler):
             emit({"frac": 0.01, "msg": f"Starting {place}…"})
             city = export_webapp.export_and_register(
                 place, synthetic=synthetic,
+                osm_id=osm_id,
                 progress=lambda f, m: emit({"frac": round(float(f), 3), "msg": m}),
             )
             print(f"[build] {place}: {city['n_land']} land cells, source={city['source']}")

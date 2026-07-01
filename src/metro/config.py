@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from pathlib import Path
 from typing import Any
 
@@ -39,12 +40,42 @@ class Config(dict):
             self["city"]["place"].split(",")[0].strip().lower().replace(" ", "_")
         )
 
+    def city_cache_slug(self) -> str:
+        """Cache key for a place, including exact OSM ID when configured."""
+        slug = self.city_slug()
+        osm_id = self.get("city", {}).get("osm_id")
+        if not osm_id:
+            return slug
+        safe_id = normalise_osm_id(osm_id).lower()
+        return f"{slug}_{safe_id}"
+
 
 def load_config(path: str | Path | None = None) -> Config:
     path = Path(path) if path else DEFAULT_CONFIG_PATH
     with open(path, "r") as f:
         raw = yaml.safe_load(f)
     return _wrap(raw)
+
+
+def normalise_osm_id(osm_id: str) -> str:
+    """Return Nominatim lookup form, accepting URLs and bare numeric IDs."""
+    osm_id = str(osm_id).strip()
+    if not osm_id:
+        raise ValueError("OSM ID cannot be empty")
+    url_match = re.search(r"openstreetmap\.org/(node|way|relation)/(\d+)", osm_id, re.I)
+    if url_match:
+        prefix = {"node": "N", "way": "W", "relation": "R"}[url_match.group(1).lower()]
+        return f"{prefix}{url_match.group(2)}"
+    type_match = re.search(r"\b(node|way|relation)\b\D*(\d+)", osm_id, re.I)
+    if type_match:
+        prefix = {"node": "N", "way": "W", "relation": "R"}[type_match.group(1).lower()]
+        return f"{prefix}{type_match.group(2)}"
+    short_match = re.fullmatch(r"([NWRnwr])\D*(\d+)", osm_id)
+    if short_match:
+        return f"{short_match.group(1).upper()}{short_match.group(2)}"
+    if osm_id.isdigit():
+        return f"R{osm_id}"
+    raise ValueError("OSM ID must look like R123, W123, N123, or an OpenStreetMap URL")
 
 
 def _wrap(obj: Any) -> Any:

@@ -1,119 +1,259 @@
-# 🛰️ Metro-Mapping
+# Metro-Mapping
 
-Define the **functional metro area** of a Philippine city (which is loosely
-defined in practice) and model the **relative land value** of every area from
-its proximity to downtown, major establishments and main roads.
+Metro-Mapping is a Python geospatial pipeline and static MapLibre web app for
+estimating the functional metro area of a Philippine city and visualizing a
+relative land-value index over an H3 hex grid.
 
-Built the way a Maps/Uber spatial team would: an **H3 hexagonal grid** as the
-unit of analysis, **OpenStreetMap** as the data source, a transparent
-**accessibility-based land-value index**, and a **data-driven metro boundary**.
+The project is built around a simple idea: fetch city-scale OpenStreetMap data,
+turn the study region into H3 cells, compute accessibility and built-up
+features per cell, use those features to produce an interpretable 0-100
+land-value index, then export compact GeoJSON for a browser map.
 
----
+## What It Does
 
-## Why this design
+- Builds an H3 grid over a city boundary plus configurable buffer.
+- Fetches OpenStreetMap boundary, points of interest, roads, and water polygons
+  with OSMnx.
+- Detects a downtown/CBD from smoothed weighted POI density unless manually
+  pinned in `config.yaml`.
+- Computes per-cell spatial features:
+  - distance to CBD
+  - distance to nearest major road
+  - POI count and weighted POI density
+  - road density
+  - establishment gravity access
+- Drops mapped water and likely open-sea cells with a reachability rule.
+- Computes an interpretable land-value proxy from normalized accessibility
+  components.
+- Delineates the metro area as the contiguous built-up H3 component connected
+  to downtown.
+- Exports a static web app dataset with live browser-side weight sliders.
+- Exports excluded water/open-sea cells so the web map can fill visual holes
+  with a toggleable water layer.
 
-| Decision | Rationale |
-|---|---|
-| **H3 hexagons** (Uber H3) as the spatial unit | Equidistant neighbours → clean contiguity, spatial smoothing, and a native map layer. The industry standard for spatial value modelling. |
-| **OpenStreetMap** via OSMnx | Free, global, good PH coverage for roads + POIs. Swappable for PSA / cadastral data later. |
-| **Auto-detected CBD** | Downtown = peak of neighbourhood-smoothed commercial-POI density, not a hardcoded pin (override in `config.yaml`). |
-| **Land value = weighted accessibility index** | Transparent and tunable now; a clean placeholder you replace with a supervised model once you have real ₱/m² labels — same feature table. |
-| **Metro = contiguous urban core** | The block of "urban" cells (built-up score above a percentile) connected to downtown on the H3 lattice. Mirrors how urban extents / commuting zones are delineated. |
-| **Water exclusion** | Coastal cities put many grid cells over the sea. OSM stores inland water (lakes/rivers/reservoirs) as polygons but **not the open ocean**, so a cell is kept as land only if it (or a neighbour) has road coverage, has a POI, or touches the boundary — that's what removes the sea. |
-| **Per-city caching** | Every layer (boundary, POIs, roads, water) and the feature table are cached to `data/` keyed on city + buffer + resolution, so switching back to a city is instant (~2 s vs. minutes). |
-| **Synthetic fallback** | If OSM is unreachable, a synthetic mono-centric city (with a bay) is generated so the whole pipeline + app still run. |
+If OSM is unavailable, the CLI pipeline can fall back to a synthetic radial city
+so the rest of the pipeline and app still run end to end.
 
-## Install
+## Repository Layout
+
+```text
+config.yaml               Main city, grid, OSM, water, model, and path settings.
+requirements.txt          Python dependencies.
+
+scripts/
+  build_dataset.py        Build feature parquet plus context outputs.
+  export_webapp.py        Export compact GeoJSON/JSON for the web app.
+
+src/metro/
+  config.py               YAML loader and Config helper.
+  data.py                 OSM fetch/cache layer plus synthetic fallback.
+  grid.py                 H3 v3/v4-compatible helpers.
+  features.py             Cell feature engineering and water masking.
+  landvalue.py            Land-value index and metro delineation.
+  mapviz.py               Folium map and metro polygon GeoJSON export.
+  pipeline.py             End-to-end orchestration and cache paths.
+
+webapp/
+  index.html              Static app shell.
+  app.js                  MapLibre UI, live weighting, city build flow.
+  style.css               App styling.
+  serve.py                Static server plus /api/build SSE endpoint.
+  serve.sh                Convenience launcher, defaulting to port 8010.
+  data/                   Generated cells, water, metro, POI, and manifest
+                          exports; gitignored except .gitkeep.
+
+data/                     Generated OSM cache, feature parquet, maps, and polygons;
+                          gitignored except .gitkeep.
+```
+
+## Setup
+
+Use a virtual environment if possible:
 
 ```bash
-cd metro-mapping
+python -m venv .venv
+source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-## Run
+The pipeline needs network access for first-time real OSM builds. Re-runs use
+the cache under `data/osm_cache/` when possible.
 
-**1 — Build the feature table** (fetches OSM the first time, then caches):
+## Build A Dataset
+
+Build the configured city from `config.yaml`:
 
 ```bash
-python scripts/build_dataset.py                       # uses config.yaml (Cebu City)
+python scripts/build_dataset.py
+```
+
+Build a specific city:
+
+```bash
 python scripts/build_dataset.py --place "Davao City, Philippines"
-python scripts/build_dataset.py --synthetic           # offline demo
-python scripts/build_dataset.py --rebuild             # ignore cache
 ```
 
-**2 — Launch the web app** (primary — a MapLibre static site, same framework as
-the PH-bank-deposits explorer):
+Force a fresh OSM/feature rebuild:
 
 ```bash
-python scripts/export_webapp.py       # export static GeoJSON/JSON into webapp/data
-bash webapp/serve.sh                   # → http://localhost:8010
+python scripts/build_dataset.py --rebuild
 ```
 
-`serve.sh` runs a tiny Python server (`webapp/serve.py`) that serves the static
-site **and** a build endpoint, so you can **add cities straight from the browser**:
-type a name in *"Add a city"* and watch a progress bar as it fetches OSM, builds
-the model, and drops the new city into the switcher.
+Run an offline synthetic demo:
 
-You can also pre-export several cities from the CLI:
+```bash
+python scripts/build_dataset.py --synthetic
+```
+
+`build_dataset.py` writes:
+
+- feature parquet: `data/<city>_features_res<res>_<buffer>km.parquet`
+- metro polygon: `data/<city>_metro_res<res>.geojson`
+- folium context map: `data/<city>_context_map_res<res>.html`
+
+## Export And Serve The Web App
+
+Export the configured city:
+
+```bash
+python scripts/export_webapp.py
+```
+
+Export multiple cities:
 
 ```bash
 python scripts/export_webapp.py --places "Cebu City, Philippines" "Iloilo City, Philippines"
 ```
 
-## What the web app gives you
+Serve the app:
 
-- An **H3 choropleth** on a real OpenStreetMap/CARTO basemap (street & place
-  names for context), colour by land value, accessibility, POI/road density,
-  distance to downtown, or built-up score.
-- **Live land-value weights** — the index is recomputed *in the browser* from
-  exported normalised components, so the sliders are instant with no server.
-- The **metro boundary** (red dashed) + a "metro cells only" view.
-- Downtown marker, POIs by category, colour-scale toggle, ranked top-cells list,
-  and a click-through **detail card** with a per-factor contribution chart.
-- A **city switcher**, plus an in-app **"Add a city"** generator with a live
-  progress bar (builds a new city from OSM via `webapp/serve.py`).
-
-## Layout
-
-```
-config.yaml               # the one place you tune city, grid, weights, thresholds
-scripts/
-  build_dataset.py        # CLI: build + cache the feature table, print a summary
-  export_webapp.py        # CLI: export static GeoJSON/JSON for the web app
-webapp/                   # MapLibre static site (index.html, style.css, app.js)
-  serve.py                # static server + /api/build SSE city generator
-  data/                   # exported per-city GeoJSON + manifest.json (gitignored)
-src/metro/
-  config.py               # YAML config loader (+ live overrides)
-  data.py                 # OSM boundary/roads/POIs/water  +  synthetic fallback
-  grid.py                 # H3 grid construction (v3/v4-safe wrappers)
-  features.py             # per-cell features: dist-to-CBD, road/POI density, gravity access, water mask
-  landvalue.py            # land-value index  +  metro delineation
-  mapviz.py               # folium context map + metro polygon (GeoJSON) export
-  pipeline.py             # glue: data → grid → features (cached) → model
-data/                     # cached OSM + feature parquet (gitignored)
+```bash
+bash webapp/serve.sh
 ```
 
-## The land-value model (current vs. next)
+Then open:
 
-**Now (unsupervised, interpretable):**
-
-```
-value = Σ_i  weight_i · normalise(component_i)
-components = { access_cbd, access_major_road, establishment_access,
-              poi_density, road_density }
+```text
+http://localhost:8010
 ```
 
-Distances become access via `exp(-dist / scale)` (closer = higher, diminishing
-returns); density features are percentile-ranked. Weights live in `config.yaml`.
+The server serves static files and exposes:
 
-**Next (supervised):** collect real listing / transaction ₱/m² (Lamudi,
-DOF zonal values, BIR), join to cells, and fit gradient boosting on the *same*
-features. The app and feature pipeline don't change — only `landvalue.py`.
+```text
+GET /api/build?place=<city name>
+```
 
-## Roadmap ideas
+That endpoint streams Server-Sent Events while it builds a city, writes the
+new `webapp/data/*` files, and upserts the city into `webapp/data/manifest.json`.
+The browser uses that endpoint for the "Add a city" control.
 
-- Real price labels → supervised model + SHAP feature attribution.
-- Network/travel-time access (isochrones) instead of straight-line distance.
-- Night-lights / built-up area (VIIRS, WorldPop) to sharpen the urban mask.
-- Multi-city run + a "metro-ness" score to compare delineations.
+The web app includes a "Bodies of water" layer toggle. This layer is generated
+from cells excluded by the land mask plus mapped OSM water polygons, so bays,
+rivers, and open-water gaps read as water instead of empty holes.
+
+For cities where text search is unreliable, the app also accepts an optional
+exact OpenStreetMap object ID. Use `R...` for relations, `W...` for ways, or
+`N...` for nodes. Bare numeric IDs are treated as relations, and OpenStreetMap
+URLs are accepted too.
+
+## Configuration
+
+Most project behavior is controlled from `config.yaml`.
+
+Important fields:
+
+- `city.place`: OSM-geocodable city name.
+- `city.osm_id`: optional exact OSM boundary object tried before fuzzy place
+  search.
+- `city.osm_id_fallbacks`: hardcoded fallback IDs for known troublesome city
+  names in the web app builder. `zamboanga city` currently maps to `R3617877`.
+- `city.study_buffer_km`: buffer around the official city boundary.
+- `grid.h3_resolution`: H3 resolution. Resolution 8 is the current city-scale
+  default.
+- `cbd.lat` / `cbd.lng`: optional manual CBD override. Leave both `null` for
+  auto-detection.
+- `poi_categories`: OSM tags and weights used for establishment pull.
+- `roads.major_classes`: OSM highway classes treated as arterials.
+- `water.require_reachable`: when true, removes likely sea cells that have no
+  nearby roads, POIs, or boundary contact.
+- `landvalue.decay_scale_km`: distance decay scales for accessibility.
+- `landvalue.weights`: model component weights.
+- `metro.urban_percentile`: built-up threshold for metro delineation.
+
+## Model Summary
+
+The current model is intentionally unsupervised and interpretable:
+
+```text
+value = sum(weight_i * normalize(component_i)) / sum(weight_i)
+```
+
+Components:
+
+```text
+access_cbd
+access_major_road
+establishment_access
+poi_density
+road_density
+```
+
+Distance features become access scores with exponential decay. Density and
+gravity-style features are percentile ranked to reduce the impact of skew and
+outliers. The final `land_value_index` is min-max scaled to 0-100.
+
+The metro footprint is a graph problem over the H3 lattice:
+
+1. Compute built-up score from POI density and road density.
+2. Mark cells above `metro.urban_percentile` as urban.
+3. Find the H3 cell containing the CBD, or the nearest urban cell to it.
+4. Keep the contiguous urban component connected to that seed.
+
+## Data And Generated Files
+
+Generated files are intentionally not committed:
+
+- `data/osm_cache/*.parquet`
+- `data/*_features_*.parquet`
+- `data/*_metro_*.geojson`
+- `data/*_context_map_*.html`
+- `webapp/data/*.geojson`
+- `webapp/data/manifest.json`
+
+Keep `data/.gitkeep` and `webapp/data/.gitkeep`.
+
+## Development Notes
+
+- The code imports local modules by inserting `src/` into `sys.path` from the
+  scripts. There is no package install step yet.
+- `src/metro/grid.py` wraps the H3 API so both H3 v3 and v4-style names can be
+  tolerated.
+- `src/metro/data.py` uses exact OSM ID lookup with `by_osmid=True` when
+  `city.osm_id` is provided, then falls back to text search if the exact lookup
+  fails.
+- `pipeline.run()` always reruns the cheap land-value and metro model after
+  loading cached features. Cached parquet stores feature-stage outputs only.
+- Cached feature tables are checked against the loaded city geometry before
+  reuse, so old synthetic fallback outputs cannot silently place a real city in
+  the wrong geography.
+- OSM ID-backed caches include the ID in their cache key so exact lookups do not
+  reuse fuzzy-search caches for the same city name.
+- `export_webapp.py` writes `<slug>_water.geojson` for the water toggle. It is
+  visual context only; water cells are still excluded from the land-value model.
+- `export_webapp.py` shortens property names for browser payload size. If you
+  add or rename model fields, update both `COMPONENTS`/`METRICS` there and the
+  matching logic in `webapp/app.js`.
+- CLI builds may silently fall back to synthetic data when OSM fails. The
+  browser city builder rejects accidental synthetic fallback for real city
+  requests.
+
+## Suggested Next Work
+
+- Add tests for H3 grid construction, water masking, land-value scaling, and
+  manifest upsert behavior.
+- Add a supervised model path once real price labels are available.
+- Add travel-time or network accessibility in place of straight-line distance.
+- Add night-lights, population, or built-up raster data to improve the urban
+  mask.
+- Package the project with `pyproject.toml` so scripts can avoid manual
+  `sys.path` insertion.

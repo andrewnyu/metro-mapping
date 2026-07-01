@@ -3,6 +3,7 @@
 
 Writes, per city, into webapp/data/:
     <slug>_cells.geojson   H3 land cells + features (short property keys)
+    <slug>_water.geojson   excluded water/open-sea cells + mapped water polygons
     <slug>_metro.geojson   the metro-area polygon
     <slug>_pois.geojson    POIs (category)
 and a single manifest.json describing the cities, metrics and default weights.
@@ -26,9 +27,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import geopandas as gpd  # noqa: E402
+import pandas as pd  # noqa: E402
 
-from metro import mapviz, pipeline  # noqa: E402
-from metro.config import load_config  # noqa: E402
+from metro import grid, mapviz, pipeline  # noqa: E402
+from metro.config import load_config, normalise_osm_id  # noqa: E402
 
 WEBAPP_DATA = Path(__file__).resolve().parents[1] / "webapp" / "data"
 
@@ -51,8 +53,27 @@ def r(x, n=4):
     return round(float(x), n)
 
 
-def export_city(cfg, place: str, synthetic: bool = False, rebuild: bool = False, progress=None) -> dict:
+def _norm_place(place: str) -> str:
+    return " ".join(place.lower().replace(",", " ").split())
+
+
+def _fallback_osm_id(cfg, place: str) -> str | None:
+    fallbacks = cfg["city"].get("osm_id_fallbacks", {}) or {}
+    norm = _norm_place(place)
+    for key, osm_id in fallbacks.items():
+        key_norm = _norm_place(str(key))
+        if norm == key_norm or norm.startswith(key_norm + " "):
+            return str(osm_id)
+    return None
+
+
+def export_city(
+    cfg, place: str, synthetic: bool = False, rebuild: bool = False,
+    progress=None, osm_id: str | None = None,
+) -> dict:
     cfg["city"]["place"] = place
+    raw_osm_id = osm_id or _fallback_osm_id(cfg, place)
+    cfg["city"]["osm_id"] = normalise_osm_id(raw_osm_id) if raw_osm_id else None
     slug = cfg.city_slug()
     # Pipeline drives 0..0.9; file writing takes the last 10%.
     gdf, city = pipeline.run(
@@ -76,6 +97,30 @@ def export_city(cfg, place: str, synthetic: bool = False, rebuild: bool = False,
     ex["mt"] = gdf["in_metro"].astype(int).values
     ex = ex.reset_index(drop=True)
     (WEBAPP_DATA / f"{slug}_cells.geojson").write_text(ex.to_json())
+
+    # --- water/excluded cells geojson ----------------------------------
+    # These cells are excluded from the land-value model, but rendering them
+    # under the land grid prevents bays/rivers/open water from looking like
+    # unexplained holes in the metro map.
+    all_cells = set(grid.build_grid(city.study_region, cfg["grid"]["h3_resolution"]))
+    water_cells = sorted(all_cells - set(gdf.index))
+    water_parts = []
+    if water_cells:
+        water_parts.append(gpd.GeoDataFrame(
+            {"id": water_cells, "kind": ["excluded_cell"] * len(water_cells)},
+            geometry=[grid.cell_polygon(c) for c in water_cells],
+            crs="EPSG:4326",
+        ))
+    if city.water is not None and not city.water.empty:
+        mapped = city.water[["geometry"]].copy()
+        mapped["id"] = [f"water_{i}" for i in range(len(mapped))]
+        mapped["kind"] = "mapped_water"
+        water_parts.append(mapped[["id", "kind", "geometry"]])
+    if water_parts:
+        water = gpd.GeoDataFrame(pd.concat(water_parts, ignore_index=True), crs="EPSG:4326")
+    else:
+        water = gpd.GeoDataFrame({"id": [], "kind": []}, geometry=[], crs="EPSG:4326")
+    (WEBAPP_DATA / f"{slug}_water.geojson").write_text(water.to_json())
 
     # --- metro polygon -------------------------------------------------
     metro_fc = mapviz.polygon_geojson(gdf)
@@ -103,12 +148,14 @@ def export_city(cfg, place: str, synthetic: bool = False, rebuild: bool = False,
           f"water_excl={gdf.attrs.get('n_water_excluded', 0):>4}")
     return {
         "slug": slug, "name": place.split(",")[0], "place": place,
+        "osm_id": cfg["city"].get("osm_id"),
         "center": [r(cbd_lng, 5), r(cbd_lat, 5)],
         "bbox": [r(b[0], 5), r(b[1], 5), r(b[2], 5), r(b[3], 5)],
         "cells": f"{slug}_cells.geojson", "metro": f"{slug}_metro.geojson",
-        "pois": f"{slug}_pois.geojson",
+        "pois": f"{slug}_pois.geojson", "water": f"{slug}_water.geojson",
         "n_land": int(len(gdf)), "n_water": int(gdf.attrs.get("n_water_excluded", 0)),
         "n_pois": int(len(city.pois)), "metro_km2": metro_area, "source": city.source,
+        "source_error": city.source_error,
     }
 
 
@@ -145,19 +192,30 @@ def upsert_city(cfg, city: dict) -> dict:
     return man
 
 
-def export_and_register(place: str, synthetic: bool = False, rebuild: bool = False, progress=None) -> dict:
+def export_and_register(
+    place: str, synthetic: bool = False, rebuild: bool = False,
+    progress=None, osm_id: str | None = None,
+) -> dict:
     """Build one city, write its files, upsert it into the manifest. Used by the server."""
     WEBAPP_DATA.mkdir(parents=True, exist_ok=True)
     cfg = load_config()
-    city = export_city(cfg, place, synthetic=synthetic, rebuild=rebuild, progress=progress)
+    city = export_city(
+        cfg, place, synthetic=synthetic, rebuild=rebuild,
+        progress=progress, osm_id=osm_id,
+    )
     if not synthetic and city.get("source") != "osm":
         # OSM geocode/fetch failed and the pipeline fell back to synthetic —
         # remove the stray files, don't register, surface a helpful error.
-        for key in ("cells", "metro", "pois"):
+        for key in ("cells", "metro", "pois", "water"):
             (WEBAPP_DATA / city[key]).unlink(missing_ok=True)
+        if city.get("osm_id"):
+            detail = f" Tried exact OSM ID {city['osm_id']}."
+        else:
+            detail = " Try a fuller name, e.g. “Davao City, Philippines”, or provide an exact OSM relation ID."
+        if city.get("source_error"):
+            detail += f" OSM error: {city['source_error']}"
         raise LookupError(
-            f"Couldn't find “{place}” on OpenStreetMap. "
-            f"Try a fuller name, e.g. “Davao City, Philippines”.")
+            f"Couldn't build “{place}” from OpenStreetMap.{detail}")
     upsert_city(cfg, city)
     if progress:
         progress(1.0, "Done")

@@ -12,6 +12,14 @@ city:
   #   "Iloilo City, Philippines"
   #   "Bacolod, Philippines"
   place: "Cebu City, Philippines"
+  # Optional exact OSM object for the city boundary. Use N/W/R prefixes:
+  #   N = node, W = way, R = relation.
+  # This is tried before fuzzy Nominatim search when set.
+  osm_id: null
+  # Fallback exact OSM IDs used by the web app builder for troublesome names.
+  # Keys are normalized, so "Zamboanga City" and "zamboanga city" both match.
+  osm_id_fallbacks:
+    zamboanga city: "R3617877"
   # How far (km) beyond the official city boundary to study. A metro area
   # spills over its core city, so we analyse a buffered region.
   study_buffer_km: 12.0

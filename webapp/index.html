@@ -6,7 +6,7 @@
 <title>Metro-Mapping — Metro area & land value</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-<link href="style.css?v=3" rel="stylesheet" />
+<link href="style.css?v=4" rel="stylesheet" />
 </head>
 <body>
 <div id="app">
@@ -27,6 +27,7 @@
         <input type="text" id="cityInput" placeholder="e.g. Davao City, Philippines" autocomplete="off" />
         <button id="addCityBtn" class="go-btn">Generate</button>
       </div>
+      <input type="text" id="osmIdInput" class="osm-id-input" placeholder="Optional exact OSM ID, e.g. R3617877" autocomplete="off" />
       <div id="buildProgress" class="hidden">
         <div class="pbar"><div class="pfill" id="pfill"></div></div>
         <div class="pmsg mono" id="pmsg"></div>
@@ -56,6 +57,7 @@
       <label>Layers</label>
       <div class="toggles">
         <label class="chk"><input type="checkbox" id="tglMetro" checked> Metro boundary</label>
+        <label class="chk"><input type="checkbox" id="tglWater" checked> Bodies of water</label>
         <label class="chk"><input type="checkbox" id="tglMetroOnly"> Metro cells only</label>
         <label class="chk"><input type="checkbox" id="tglPois"> POIs</label>
       </div>
@@ -93,6 +95,6 @@
 <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
