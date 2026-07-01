@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "metro-webapp",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/andrewyu/prog/metro-mapping/webapp && python3 serve.py 8010"],
+      "port": 8010
+    }
+  ]
+}

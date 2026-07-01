@@ -1,0 +1,19 @@
+# Core
+numpy>=1.26
+pandas>=2.0
+pyyaml>=6.0
+pyarrow>=14.0
+
+# Geospatial
+geopandas>=1.0
+shapely>=2.0
+osmnx>=2.0          # OpenStreetMap road networks + POIs
+h3>=4.0            # Uber H3 hexagonal grid
+
+# Modeling
+scikit-learn>=1.3
+scipy>=1.10
+
+# Export / viz (the web app itself is a static MapLibre site — no Python deps)
+folium>=0.16        # optional folium context-map export (scripts/build_dataset.py)
+matplotlib>=3.7     # colour maps / ad-hoc plots

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Metro-Mapping — Metro area & land value</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="style.css?v=3" rel="stylesheet" />
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <header>
+      <h1>Metro-Mapping</h1>
+      <p class="sub">Functional metro area & relative land value · OpenStreetMap</p>
+    </header>
+
+    <div class="control" id="cityControl">
+      <label>City</label>
+      <select id="citySelect"></select>
+    </div>
+
+    <div class="control" id="addCityControl">
+      <label>Add a city <span class="hint">— builds from OpenStreetMap</span></label>
+      <div class="add-row">
+        <input type="text" id="cityInput" placeholder="e.g. Davao City, Philippines" autocomplete="off" />
+        <button id="addCityBtn" class="go-btn">Generate</button>
+      </div>
+      <div id="buildProgress" class="hidden">
+        <div class="pbar"><div class="pfill" id="pfill"></div></div>
+        <div class="pmsg mono" id="pmsg"></div>
+      </div>
+    </div>
+
+    <div class="control">
+      <label>Colour by</label>
+      <select id="metricSelect"></select>
+    </div>
+
+    <div class="control">
+      <label>Colour scale</label>
+      <div class="segmented small" id="scaleToggle">
+        <button data-scale="linear" class="active">Linear</button>
+        <button data-scale="log">Log</button>
+      </div>
+    </div>
+
+    <div class="control" id="weightsControl">
+      <label>Land-value weights <span class="hint">— tune the model live</span></label>
+      <div id="weights"></div>
+      <button id="resetWeights" class="link-btn">reset to defaults</button>
+    </div>
+
+    <div class="control">
+      <label>Layers</label>
+      <div class="toggles">
+        <label class="chk"><input type="checkbox" id="tglMetro" checked> Metro boundary</label>
+        <label class="chk"><input type="checkbox" id="tglMetroOnly"> Metro cells only</label>
+        <label class="chk"><input type="checkbox" id="tglPois"> POIs</label>
+      </div>
+    </div>
+
+    <div id="legend"></div>
+
+    <div class="control list-control">
+      <label>Top cells · <span id="listMetricLabel"></span></label>
+      <ol id="topList"></ol>
+    </div>
+
+    <footer>
+      <span id="matchNote"></span>
+      Source: <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a>
+    </footer>
+  </aside>
+
+  <main id="mapWrap">
+    <div id="map"></div>
+    <div id="tooltip" class="hidden"></div>
+
+    <div id="detail" class="hidden">
+      <button id="detailClose" title="Close">×</button>
+      <div id="detailHead"></div>
+      <div id="detailStats"></div>
+      <div class="chart-wrap"><canvas id="compChart"></canvas></div>
+      <p class="detail-foot">Weighted contribution of each factor to this cell's land value.</p>
+    </div>
+
+    <div id="loading">Loading map &amp; data…</div>
+  </main>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="app.js?v=3"></script>
+</body>
+</html>
