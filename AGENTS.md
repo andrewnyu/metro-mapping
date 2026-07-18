@@ -144,14 +144,16 @@ Expected browser behavior:
 - If you touch water masking or web exports, keep the water layer contract in
   sync: manifest city entries include `water`, and `webapp/app.js` loads it
   under the land-value cells.
-- If you touch metro delineation, keep it on an **absolute** urban bar
-  (`metro.min_poi_per_cell` OR `metro.min_road_km_per_cell` per cell), not a
+- If you touch metro delineation, keep it on an **absolute** urban bar, not a
   percentile of the city's own distribution — a relative cut caps the metro at a
-  fixed fraction of any city and made Cebu far too small. Keep the metro as the
-  contiguous component connected to the CBD, and preserve `metro.bridge_gap` so
-  districts split by a water channel/park (Mactan across the Cebu channel) stay
-  attached. Relative ranks (`builtup_score`, land-value) are for price/display
-  only and must not decide the boundary.
+  fixed fraction of any city and made Cebu far too small. A cell qualifies by
+  `metro.min_poi_per_cell`, or by `metro.min_road_km_per_cell` only when backed
+  by `metro.min_establishment_access_for_road_cell`; this keeps rural road
+  corridors inside huge city limits from ballooning the metro. Keep the metro as
+  the contiguous component connected to the CBD, and preserve `metro.bridge_gap`
+  so districts split by a water channel/park (Mactan across the Cebu channel)
+  stay attached. Relative ranks (`builtup_score`, land-value) are for
+  price/display only and must not decide the boundary.
 - If a city has sparse POI data, CBD detection should still use the road-density
   core rather than falling back to an arbitrary H3 cell.
 - If you touch city search or the web app build endpoint, preserve exact OSM ID
@@ -187,8 +189,9 @@ Expected browser behavior:
   path. If a city renders in the wrong geography, inspect the feature parquet
   bounds against `data/osm_cache/<slug>_boundary.parquet` and rebuild with
   `--rebuild`.
-- `config.yaml` includes a hardcoded web-builder fallback for Zamboanga City:
-  `zamboanga city: "R3617877"`.
+- `config.yaml` includes hardcoded web-builder OSM ID fallbacks for names that
+  fuzzy geocoding may match to the wrong object: Bacolod City (`R11349321`),
+  Puerto Princesa City (`R9481097`), and Zamboanga City (`R3617877`).
 - The land-value model is a relative proxy, not a trained price model. Real
   transaction/listing data is needed before interpreting it as currency value.
 - Straight-line distance is used today; network travel time would be a better

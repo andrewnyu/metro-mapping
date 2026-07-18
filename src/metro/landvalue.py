@@ -17,13 +17,13 @@ METRO DELINEATION
 -----------------
 Kept deliberately separate from the (relative) land-value score. A cell is
 "urban" by an ABSOLUTE bar — it has at least `min_poi_per_cell` establishments
-OR at least `min_road_km_per_cell` km of road — judged on its own terms, not by
-percentile rank within the city. The metro footprint = the urban cells
-contiguously connected to the downtown cell on the H3 lattice, where contiguity
-may bridge up to `bridge_gap` rings so districts split by a water channel, park,
-or unbuildable strip (e.g. Mactan across the Cebu channel) stay attached. This
-gives a roughly real built-up extent (for area / traffic / commute-flow use)
-instead of a fixed fraction of whatever city you point it at.
+or a dense road grid with enough nearby establishment gravity — judged on its
+own terms, not by percentile rank within the city. The metro footprint = the
+urban cells contiguously connected to the downtown cell on the H3 lattice, where
+contiguity may bridge up to `bridge_gap` rings so districts split by a water
+channel, park, or unbuildable strip (e.g. Mactan across the Cebu channel) stay
+attached. This gives a roughly real built-up extent (for area / traffic /
+commute-flow use) instead of a fixed fraction of whatever city you point it at.
 """
 from __future__ import annotations
 
@@ -90,10 +90,11 @@ def compute_land_value(cfg: Config, gdf):
 def delineate_metro(cfg: Config, gdf):
     """Metro = urban cells (absolute bar) contiguously connected to downtown.
 
-    Urban is judged per cell on its own terms — establishments or a dense road
-    grid — not by percentile rank, so the footprint reflects the real built-up
-    extent. Small non-urban gaps (water/parks/unbuildable land) are bridged so
-    districts separated by a channel stay attached.
+    Urban is judged per cell on its own terms — establishments, or a dense road
+    grid supported by nearby establishment access — not by percentile rank, so
+    the footprint reflects the real built-up extent. Small non-urban gaps
+    (water/parks/unbuildable land) are bridged so districts separated by a
+    channel stay attached.
     """
     gdf = gdf.copy()
     m = cfg["metro"]
@@ -105,12 +106,17 @@ def delineate_metro(cfg: Config, gdf):
         + bw["road_density"] * _positive_rank01(gdf["road_density_km"])
     ).values
 
-    # Absolute urban criterion: enough establishments OR a dense-enough road grid.
+    # Absolute urban criterion: enough establishments OR a dense-enough road
+    # grid with nearby activity. The access guard prevents rural through-roads
+    # in very large administrative cities from ballooning the metro footprint.
     min_poi = float(m.get("min_poi_per_cell", 3))
     min_road = float(m.get("min_road_km_per_cell", 4.0))
-    gdf["is_urban"] = (
-        (gdf["poi_count"] >= min_poi) | (gdf["road_density_km"] >= min_road)
-    ).values
+    min_road_access = float(m.get("min_establishment_access_for_road_cell", 0))
+    poi_urban = gdf["poi_count"] >= min_poi
+    road_urban = gdf["road_density_km"] >= min_road
+    if min_road_access > 0:
+        road_urban &= gdf["establishment_access"] >= min_road_access
+    gdf["is_urban"] = (poi_urban | road_urban).values
 
     # Seed = downtown cell (or nearest urban cell to it).
     cbd_lat, cbd_lng = gdf.attrs.get("cbd", (gdf.lat.mean(), gdf.lng.mean()))

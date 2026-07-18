@@ -156,23 +156,45 @@ def _geocode_boundary(ox, cfg: Config) -> gpd.GeoDataFrame:
     """Resolve the city boundary by exact OSM ID, then text search fallback."""
     place = cfg["city"]["place"]
     osm_id = cfg["city"].get("osm_id")
+    errors = []
     if osm_id:
         try:
-            return ox.geocode_to_gdf(normalise_osm_id(osm_id), by_osmid=True)
+            return _coerce_city_boundary(
+                ox.geocode_to_gdf(normalise_osm_id(osm_id), by_osmid=True),
+                cfg,
+            )
         except Exception as osmid_exc:
+            errors.append(f"OSM ID {osm_id!r}: {type(osmid_exc).__name__}: {osmid_exc}")
             warnings.warn(
                 f"Exact OSM ID lookup failed for {osm_id!r} "
                 f"({type(osmid_exc).__name__}: {osmid_exc}). "
                 f"Trying place search for {place!r}.",
                 stacklevel=2,
             )
-    try:
-        return ox.geocode_to_gdf(place)
-    except TypeError:
-        gdf = ox.geocode_to_gdf(place, which_result=1).to_crs(WGS84)
-        if not gdf.empty and gdf.geometry.iloc[0].geom_type == "Point":
-            return _point_boundary(gdf, cfg)
-        raise
+    for which in [None, 1, 2, 3, 4, 5]:
+        try:
+            kwargs = {} if which is None else {"which_result": which}
+            return _coerce_city_boundary(ox.geocode_to_gdf(place, **kwargs), cfg)
+        except Exception as exc:
+            label = "default" if which is None else f"result {which}"
+            errors.append(f"{label}: {type(exc).__name__}: {exc}")
+    raise LookupError(f"No administrative city boundary found for {place!r}. " + " | ".join(errors))
+
+
+def _coerce_city_boundary(gdf: gpd.GeoDataFrame, cfg: Config) -> gpd.GeoDataFrame:
+    """Accept admin boundaries or city points; reject schools/airports/malls."""
+    gdf = gdf.to_crs(WGS84)
+    if gdf.empty:
+        raise LookupError("geocode returned no rows")
+    geom_type = gdf.geometry.iloc[0].geom_type
+    cls = str(gdf["class"].iloc[0]) if "class" in gdf.columns else ""
+    typ = str(gdf["type"].iloc[0]) if "type" in gdf.columns else ""
+    if cls == "boundary" and typ == "administrative":
+        return gdf
+    if geom_type == "Point" and cls in {"boundary", "place"} and typ in {"administrative", "city", "town"}:
+        return _point_boundary(gdf, cfg)
+    name = str(gdf["display_name"].iloc[0]) if "display_name" in gdf.columns else "result"
+    raise LookupError(f"geocode matched {cls}/{typ} ({name}), not a city boundary")
 
 
 def _point_boundary(gdf: gpd.GeoDataFrame, cfg: Config) -> gpd.GeoDataFrame:

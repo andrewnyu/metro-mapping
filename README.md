@@ -206,7 +206,9 @@ Important fields:
 - `city.osm_id`: optional exact OSM boundary object tried before fuzzy place
   search.
 - `city.osm_id_fallbacks`: hardcoded fallback IDs for known troublesome city
-  names in the web app builder. `zamboanga city` currently maps to `R3617877`.
+  names in the web app builder. Current examples include Bacolod City
+  (`R11349321`), Puerto Princesa City (`R9481097`), and Zamboanga City
+  (`R3617877`).
 - `city.place_aliases`: simple name aliases for ambiguous searches. `surigao`
   currently maps to `Surigao City, Philippines`.
 - `city.study_buffer_km`: buffer around the official city boundary.
@@ -222,6 +224,8 @@ Important fields:
 - `landvalue.weights`: model component weights.
 - `metro.min_poi_per_cell` / `metro.min_road_km_per_cell`: the **absolute** bar
   for a cell to count as urban (establishments OR road density, per H3 cell).
+- `metro.min_establishment_access_for_road_cell`: road-only cells need at least
+  this much nearby establishment gravity before they count as urban.
 - `metro.bridge_gap`: how many H3 rings the contiguous metro may jump to cross a
   water channel / park / unbuildable gap (2 keeps districts like Mactan in).
 - `osm.overpass_urls`: Overpass endpoints tried in order when downloading OSM
@@ -235,10 +239,10 @@ Important fields:
 - Downtown is detected from the smoothed built-up core, with road density
   carrying the signal when POI data is sparse.
 - A cell is **urban** by an absolute bar — enough establishments *or* a
-  dense-enough road grid — **not** a percentile of the city's own distribution.
-  This keeps the metro from being capped at a fixed fraction of a city, so it
-  grows with the real built-up extent (Cebu ≈ 400 km², reaching Mandaue,
-  Lapu-Lapu/Mactan, Talisay, Consolacion).
+  dense-enough road grid with nearby establishment gravity — **not** a
+  percentile of the city's own distribution. This keeps the metro from being
+  capped at a fixed fraction of a city, while keeping rural road corridors in
+  very large city limits out of the metro.
 - The metro area is the urban cells **contiguously connected to downtown** on
   the H3 graph, allowing small **bridged gaps** so a district separated by a
   bay/river/park (Mactan across the channel) is not dropped.
@@ -273,7 +277,8 @@ The metro footprint is a graph problem over the H3 lattice, kept independent of
 the relative land-value score:
 
 1. Mark a cell urban by an absolute bar: `poi_count >= metro.min_poi_per_cell`
-   OR `road_density_km >= metro.min_road_km_per_cell`.
+   OR road density/access, where `road_density_km >= metro.min_road_km_per_cell`
+   and `establishment_access >= metro.min_establishment_access_for_road_cell`.
 2. Find the H3 cell containing the CBD, or the nearest urban cell to it.
 3. Grow the contiguous urban component from that seed, allowing steps of up to
    `metro.bridge_gap` rings to cross water channels / parks / unbuildable gaps.
@@ -302,7 +307,8 @@ Keep `data/.gitkeep` and `webapp/data/.gitkeep`.
   tolerated.
 - `src/metro/data.py` uses exact OSM ID lookup with `by_osmid=True` when
   `city.osm_id` is provided, then falls back to text search if the exact lookup
-  fails.
+  fails. Text geocoding rejects non-administrative polygons such as schools,
+  airports, malls, or parks before they can poison the city boundary cache.
 - `pipeline.run()` always reruns the cheap land-value and metro model after
   loading cached features. Cached parquet stores feature-stage outputs only.
 - Cached feature tables are checked against the loaded city geometry before

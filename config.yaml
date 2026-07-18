@@ -17,8 +17,13 @@ city:
   # This is tried before fuzzy Nominatim search when set.
   osm_id: null
   # Fallback exact OSM IDs used by the web app builder for troublesome names.
-  # Keys are normalized, so "Zamboanga City" and "zamboanga city" both match.
+  # Keys are normalized, so "Puerto Princesa City" and "puerto princesa city"
+  # both match.
   osm_id_fallbacks:
+    bacolod city: "R11349321"
+    bacolod: "R11349321"
+    puerto princesa city: "R9481097"
+    puerto princesa: "R9481097"
     zamboanga city: "R3617877"
   place_aliases:
     surigao: "Surigao City, Philippines"
@@ -105,6 +110,10 @@ landvalue:
 metro:
   min_poi_per_cell: 3       # >= this many POIs in the cell -> urban
   min_road_km_per_cell: 4.0 # OR >= this many km of road in the cell -> urban
+  # Road-only cells also need nearby establishment gravity before they count
+  # as urban. This keeps rural corridors inside huge city limits from becoming
+  # metro, without falling back to a relative percentile cut.
+  min_establishment_access_for_road_cell: 3.0
   # Bridge small non-urban gaps (water channels, parks, unbuildable land) up to
   # this many H3 rings when growing the metro out from downtown, so districts
   # separated by a bay/river (e.g. Mactan across the Cebu channel) stay in.
