@@ -114,6 +114,10 @@ def export_city(
     ex["pc"] = gdf["poi_count"].astype(int).values
     ex["bs"] = gdf["builtup_score"].round(4).values
     ex["mt"] = gdf["in_metro"].astype(int).values
+    ex["cn"] = (
+        gdf["is_connector"].astype(int).values
+        if "is_connector" in gdf.columns else 0
+    )
     ex = ex.reset_index(drop=True)
     (WEBAPP_DATA / f"{slug}_cells.geojson").write_text(ex.to_json())
 
@@ -164,6 +168,7 @@ def export_city(
     b = gdf.total_bounds  # minx,miny,maxx,maxy
     metro_area = metro_fc["features"][0]["properties"]["area_km2"] if metro_fc["features"] else 0
     n_metro = int(gdf["in_metro"].sum())
+    n_connectors = int(gdf["is_connector"].sum()) if "is_connector" in gdf.columns else 0
     city_area = _area_km2(city.boundary) if city.boundary is not None and not city.boundary.empty else 0
     study_area = _area_km2(city.study_region)
     land_area = _area_km2(gdf)
@@ -177,7 +182,7 @@ def export_city(
         "cells": f"{slug}_cells.geojson", "metro": f"{slug}_metro.geojson",
         "pois": f"{slug}_pois.geojson", "water": f"{slug}_water.geojson",
         "n_land": int(len(gdf)), "n_water": int(gdf.attrs.get("n_water_excluded", 0)),
-        "n_metro": n_metro, "n_pois": int(len(city.pois)),
+        "n_metro": n_metro, "n_connectors": n_connectors, "n_pois": int(len(city.pois)),
         "metro_km2": r(metro_area, 1), "city_km2": r(city_area, 1),
         "study_km2": r(study_area, 1), "land_km2": r(land_area, 1),
         "source": city.source,

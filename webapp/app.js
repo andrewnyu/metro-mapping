@@ -2,7 +2,7 @@
 const state = {
   city: null, metric: "land_value", scale: "linear",
   weights: [], selected: null, hover: null,
-  metroOnly: false, showMetro: true, showWater: true, showPois: false,
+  metroOnly: true, showMetro: true, showConnectors: false, showWater: false, showPois: false,
 };
 let MAN, CITY, CELLS, METRO, POIS, WATER, LV = {}, map, colorScale, chart, cbdMarker;
 
@@ -70,10 +70,12 @@ function buildMap() {
     map.addSource("water", { type: "geojson", data: emptyFC(), promoteId: "id" });
     map.addLayer({
       id: "water-fill", type: "fill", source: "water",
+      layout: { visibility: "none" },
       paint: { "fill-color": "#9fc5e8", "fill-opacity": 0.58 },
     });
     map.addLayer({
       id: "water-line", type: "line", source: "water",
+      layout: { visibility: "none" },
       paint: { "line-color": "#ffffff", "line-width": 0.25, "line-opacity": 0.45 },
     });
 
@@ -93,6 +95,18 @@ function buildMap() {
         "line-width": ["case", ["boolean", ["feature-state", "selected"], false], 2.4, 0.3],
         "line-opacity": 0.5,
       },
+    });
+    map.addLayer({
+      id: "connector-fill", type: "fill", source: "cells",
+      filter: ["==", ["get", "cn"], 1],
+      layout: { visibility: "none" },
+      paint: { "fill-color": "#2563eb", "fill-opacity": 0.26 },
+    });
+    map.addLayer({
+      id: "connector-line", type: "line", source: "cells",
+      filter: ["==", ["get", "cn"], 1],
+      layout: { visibility: "none" },
+      paint: { "line-color": "#1d4ed8", "line-width": 2.2, "line-opacity": 0.95 },
     });
 
     map.addSource("metro", { type: "geojson", data: emptyFC() });
@@ -131,20 +145,18 @@ const emptyFC = () => ({ type: "FeatureCollection", features: [] });
 async function loadCity(slug) {
   state.city = CITY = MAN.cities.find(c => c.slug === slug);
   $("#loading").classList.remove("hidden");
-  const waterReq = CITY.water
-    ? fetch("data/" + CITY.water).then(r => r.json()).catch(() => emptyFC())
-    : Promise.resolve(emptyFC());
-  const [cells, metro, pois, water] = await Promise.all([
+  POIS = null; WATER = null;
+  map.getSource("pois").setData(emptyFC());
+  map.getSource("water").setData(emptyFC());
+
+  const [cells, metro] = await Promise.all([
     fetch("data/" + CITY.cells).then(r => r.json()),
     fetch("data/" + CITY.metro).then(r => r.json()),
-    fetch("data/" + CITY.pois).then(r => r.json()),
-    waterReq,
   ]);
-  CELLS = cells; METRO = metro; POIS = pois; WATER = water;
+  CELLS = cells; METRO = metro;
   map.getSource("cells").setData(CELLS);
   map.getSource("metro").setData(METRO);
-  map.getSource("pois").setData(POIS);
-  map.getSource("water").setData(WATER);
+  applyLayerState();
 
   if (cbdMarker) cbdMarker.remove();
   const el = document.createElement("div"); el.className = "cbd-marker";
@@ -157,16 +169,21 @@ async function loadCity(slug) {
 
   clearSelection();
   recolor();
-  map.fitBounds([[CITY.bbox[0], CITY.bbox[1]], [CITY.bbox[2], CITY.bbox[3]]],
-    { padding: 30, duration: 600 });
+  const bounds = state.metroOnly ? geojsonBounds(METRO) : null;
+  map.fitBounds(bounds || [[CITY.bbox[0], CITY.bbox[1]], [CITY.bbox[2], CITY.bbox[3]]],
+    { padding: 36, duration: 600 });
   $("#loading").classList.add("hidden");
+  if (state.showWater) ensureWaterLoaded();
+  if (state.showPois) ensurePoisLoaded();
 }
 
 function renderCityStats() {
   const nMetro = CITY.n_metro ?? CELLS.features.filter(f => f.properties.mt).length;
+  const nConnectors = CITY.n_connectors ?? CELLS.features.filter(f => f.properties.cn).length;
   const stats = [
     ["Metro cells", nMetro.toLocaleString()],
     ["Metro area", fmt(CITY.metro_km2, 0) + " km²"],
+    ["Connectors", nConnectors.toLocaleString()],
     ["Land cells", CITY.n_land.toLocaleString()],
     ["Water cells", (CITY.n_water ?? 0).toLocaleString()],
     ["City area", fmt(CITY.city_km2, 0) + " km²"],
@@ -260,7 +277,7 @@ function onHover(e) {
     `<div class="t-name">Land value ${fmt(LV[id], 0)}</div>` +
     `<div class="t-val" style="font-size:12px">${metric().label}: ${fmt(cellVal(p), 2)}</div>` +
     `<div class="t-sub">${fmt(p.dcbd, 1)} km to downtown · ${p.pc} POIs</div>` +
-    `<div class="t-sub t-muted">${p.mt ? "in metro" : "outside metro"}</div>`;
+    `<div class="t-sub t-muted">${cellStatus(p)}</div>`;
   t.style.left = e.point.x + "px"; t.style.top = e.point.y + "px";
   t.classList.remove("hidden");
 }
@@ -290,7 +307,7 @@ function renderDetail() {
   $("#detailHead").innerHTML =
     `<div class="d-name">Cell ${p.id.slice(0, 10)}…</div>` +
     `<div class="d-loc">${fmt(p.dcbd, 2)} km from downtown · ` +
-    `<span class="${p.mt ? "up" : "down"}">${p.mt ? "in metro" : "outside metro"}</span></div>`;
+    `<span class="${p.mt ? "up" : "down"}">${cellStatus(p)}</span></div>`;
   $("#detailStats").innerHTML =
     stat("Land value", fmt(LV[p.id], 0) + " <small>/100</small>") +
     stat("Establishments", fmt(p.ea, 1)) +
@@ -300,6 +317,7 @@ function renderDetail() {
   drawCompChart(p);
 }
 const stat = (k, v) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+const cellStatus = p => p.cn ? "connector cell" : (p.mt ? "in metro" : "outside metro");
 
 function drawCompChart(p) {
   const w = state.weights, sw = w.reduce((a, b) => a + b, 0) || 1;
@@ -330,6 +348,21 @@ function centroid(f) {
   return [x / n, y / n];
 }
 
+function geojsonBounds(fc) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const visit = coords => {
+    if (!Array.isArray(coords)) return;
+    if (typeof coords[0] === "number" && typeof coords[1] === "number") {
+      minX = Math.min(minX, coords[0]); minY = Math.min(minY, coords[1]);
+      maxX = Math.max(maxX, coords[0]); maxY = Math.max(maxY, coords[1]);
+      return;
+    }
+    for (const c of coords) visit(c);
+  };
+  for (const f of fc?.features || []) visit(f.geometry?.coordinates);
+  return isFinite(minX) ? [[minX, minY], [maxX, maxY]] : null;
+}
+
 /* ---------------- controls ---------------- */
 function wireControls() {
   $("#citySelect").addEventListener("change", e => loadCity(e.target.value));
@@ -354,25 +387,56 @@ function wireControls() {
   });
 
   $("#tglMetro").addEventListener("change", e =>
-    map.setLayoutProperty("metro-line", "visibility", e.target.checked ? "visible" : "none"));
-  $("#tglWater").addEventListener("change", e => {
-    const vis = e.target.checked ? "visible" : "none";
-    map.setLayoutProperty("water-fill", "visibility", vis);
-    map.setLayoutProperty("water-line", "visibility", vis);
+    { state.showMetro = e.target.checked; applyLayerState(); });
+  $("#tglConnectors").addEventListener("change", e =>
+    { state.showConnectors = e.target.checked; applyLayerState(); });
+  $("#tglWater").addEventListener("change", async e => {
+    state.showWater = e.target.checked;
+    if (state.showWater) await ensureWaterLoaded();
+    applyLayerState();
   });
   $("#tglMetroOnly").addEventListener("change", e => {
     state.metroOnly = e.target.checked;
-    const filt = state.metroOnly ? ["==", ["get", "mt"], 1] : null;
-    map.setFilter("cells-fill", filt); map.setFilter("cells-line", filt);
+    applyLayerState();
   });
-  $("#tglPois").addEventListener("change", e =>
-    map.setLayoutProperty("pois-pt", "visibility", e.target.checked ? "visible" : "none"));
+  $("#tglPois").addEventListener("change", async e => {
+    state.showPois = e.target.checked;
+    if (state.showPois) await ensurePoisLoaded();
+    applyLayerState();
+  });
 
   $("#detailClose").addEventListener("click", clearSelection);
 
   $("#addCityBtn").addEventListener("click", () => generateCity($("#cityInput").value, $("#osmIdInput").value));
   $("#cityInput").addEventListener("keydown", e => { if (e.key === "Enter") generateCity($("#cityInput").value, $("#osmIdInput").value); });
   $("#osmIdInput").addEventListener("keydown", e => { if (e.key === "Enter") generateCity($("#cityInput").value, $("#osmIdInput").value); });
+}
+
+async function ensureWaterLoaded() {
+  if (WATER || !CITY?.water) return;
+  WATER = await fetch("data/" + CITY.water).then(r => r.json()).catch(() => emptyFC());
+  map.getSource("water").setData(WATER);
+}
+
+async function ensurePoisLoaded() {
+  if (POIS || !CITY?.pois) return;
+  POIS = await fetch("data/" + CITY.pois).then(r => r.json()).catch(() => emptyFC());
+  map.getSource("pois").setData(POIS);
+}
+
+function applyLayerState() {
+  if (!map?.getLayer("metro-line")) return;
+  const cellFilter = state.metroOnly ? ["==", ["get", "mt"], 1] : null;
+  map.setFilter("cells-fill", cellFilter);
+  map.setFilter("cells-line", cellFilter);
+  map.setLayoutProperty("metro-line", "visibility", state.showMetro ? "visible" : "none");
+  const connectorVis = state.showConnectors ? "visible" : "none";
+  map.setLayoutProperty("connector-fill", "visibility", connectorVis);
+  map.setLayoutProperty("connector-line", "visibility", connectorVis);
+  const waterVis = state.showWater ? "visible" : "none";
+  map.setLayoutProperty("water-fill", "visibility", waterVis);
+  map.setLayoutProperty("water-line", "visibility", waterVis);
+  map.setLayoutProperty("pois-pt", "visibility", state.showPois ? "visible" : "none");
 }
 
 /* ---------------- generate a new city (backend build over SSE) ---------------- */

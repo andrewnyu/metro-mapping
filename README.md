@@ -168,8 +168,9 @@ small; if you add or rename a field, change it in `export_webapp.py`
 - `cities[]`: one entry per city, each with `slug`, `name`, `place`, `osm_id`,
   `center` (`[lng, lat]`), `bbox` (`[minx, miny, maxx, maxy]`), the four layer
   filenames (`cells`, `metro`, `pois`, `water`), the counts `n_land`, `n_water`,
-  `n_metro`, `n_pois`, the areas `metro_km2` / `city_km2` / `study_km2` /
-  `land_km2`, `source` (`osm` or `synthetic`), and `source_error`.
+  `n_metro`, `n_connectors`, `n_pois`, the areas `metro_km2` / `city_km2` /
+  `study_km2` / `land_km2`, `source` (`osm` or `synthetic`), and
+  `source_error`.
 - `components`: the five model component keys, in slider order.
 - `component_labels`: human labels for those five.
 - `weights_default`: default component weights (also the reset target).
@@ -190,6 +191,7 @@ small; if you add or rename a field, change it in `export_webapp.py`
 | `pc` | POI count in cell |
 | `bs` | built-up score |
 | `mt` | in metro (0/1) |
+| `cn` | connector cell used to bridge a supported land gap (0/1) |
 
 The land-value index is recomputed **in the browser** from `c0..c4` and the
 weight sliders (`Σ wᵢ·cᵢ / Σ wᵢ`, then min-max to 0-100), so tuning is instant
@@ -226,8 +228,17 @@ Important fields:
   for a cell to count as urban (establishments OR road density, per H3 cell).
 - `metro.min_establishment_access_for_road_cell`: road-only cells need at least
   this much nearby establishment gravity before they count as urban.
-- `metro.bridge_gap`: how many H3 rings the contiguous metro may jump to cross a
-  water channel / park / unbuildable gap (2 keeps districts like Mactan in).
+- `metro.bridge_gap`: how many H3 rings the contiguous metro may jump to cross
+  excluded non-land cells, such as water channels. It does not jump ordinary
+  non-urban land.
+- `metro.connector_gap`: maximum number of weak-but-supported land cells that
+  can be added to attach the CBD-connected metro to a meaningful nearby urban
+  component.
+- `metro.connector_min_component_cells`: minimum size of an outside urban
+  component before connector cells may attach it.
+- `metro.connector_min_road_km_per_cell` /
+  `metro.connector_min_establishment_access`: evidence required for each
+  connector cell.
 - `osm.overpass_urls`: Overpass endpoints tried in order when downloading OSM
   roads, POIs, and water.
 - `osm.point_boundary_km`: radius used when OSM has a city point but no boundary
@@ -244,8 +255,13 @@ Important fields:
   capped at a fixed fraction of a city, while keeping rural road corridors in
   very large city limits out of the metro.
 - The metro area is the urban cells **contiguously connected to downtown** on
-  the H3 graph, allowing small **bridged gaps** so a district separated by a
-  bay/river/park (Mactan across the channel) is not dropped.
+  the H3 graph, allowing small **bridged gaps** only across excluded non-land
+  cells so a district separated by a channel is not dropped, while mountain or
+  rural land gaps do not attach a separate city.
+- A short chain of **connector cells** may bridge ordinary land only when every
+  connector has local road/access evidence and it joins the core to a sizable
+  nearby urban component. Connector cells are flagged separately in the web app
+  so they can be highlighted and audited.
 - Relative land-value / density ranks are for **price prediction only**; the
   metro boundary never uses them.
 - Empty cells with no POIs or roads stay non-urban; rural/island portions stay
@@ -281,7 +297,11 @@ the relative land-value score:
    and `establishment_access >= metro.min_establishment_access_for_road_cell`.
 2. Find the H3 cell containing the CBD, or the nearest urban cell to it.
 3. Grow the contiguous urban component from that seed, allowing steps of up to
-   `metro.bridge_gap` rings to cross water channels / parks / unbuildable gaps.
+   `metro.bridge_gap` rings only when the skipped cells are outside the land
+   grid, such as water/excluded cells.
+4. Optionally add connector cells across short supported land gaps when they
+   attach a sizable nearby urban component, then regrow the final component over
+   urban plus connector cells.
 
 (`builtup_score` is still computed as a relative rank, but only as a web-app
 display metric — it no longer decides the boundary.)
@@ -309,6 +329,9 @@ Keep `data/.gitkeep` and `webapp/data/.gitkeep`.
   `city.osm_id` is provided, then falls back to text search if the exact lookup
   fails. Text geocoding rejects non-administrative polygons such as schools,
   airports, malls, or parks before they can poison the city boundary cache.
+- POIs are fetched with one combined Overpass query and then classified into
+  local categories. If that combined request fails, the loader falls back to the
+  older category-by-category fetch.
 - `pipeline.run()` always reruns the cheap land-value and metro model after
   loading cached features. Cached parquet stores feature-stage outputs only.
 - Cached feature tables are checked against the loaded city geometry before

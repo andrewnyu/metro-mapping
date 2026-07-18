@@ -19,11 +19,13 @@ Kept deliberately separate from the (relative) land-value score. A cell is
 "urban" by an ABSOLUTE bar — it has at least `min_poi_per_cell` establishments
 or a dense road grid with enough nearby establishment gravity — judged on its
 own terms, not by percentile rank within the city. The metro footprint = the
-urban cells contiguously connected to the downtown cell on the H3 lattice, where
-contiguity may bridge up to `bridge_gap` rings so districts split by a water
-channel, park, or unbuildable strip (e.g. Mactan across the Cebu channel) stay
-attached. This gives a roughly real built-up extent (for area / traffic /
-commute-flow use) instead of a fixed fraction of whatever city you point it at.
+urban cells contiguously connected to the downtown cell on the H3 lattice. A
+small bridge may cross excluded non-land cells such as water, but it may not hop
+over ordinary non-urban land. A separate connector pass may add short chains of
+weak-but-supported land cells only when they join the core to a meaningful
+nearby urban cluster; connector cells are exported separately for audit. This
+keeps places like Toledo from attaching to Cebu through mountain/rural gaps,
+while avoiding premature cuts through lightly mapped urban corridors.
 """
 from __future__ import annotations
 
@@ -92,9 +94,10 @@ def delineate_metro(cfg: Config, gdf):
 
     Urban is judged per cell on its own terms — establishments, or a dense road
     grid supported by nearby establishment access — not by percentile rank, so
-    the footprint reflects the real built-up extent. Small non-urban gaps
-    (water/parks/unbuildable land) are bridged so districts separated by a
-    channel stay attached.
+    the footprint reflects the real built-up extent. Small non-land gaps are
+    bridged so districts separated by a channel stay attached. Short supported
+    land gaps may be added as connector cells only when they attach a meaningful
+    nearby urban cluster.
     """
     gdf = gdf.copy()
     m = cfg["metro"]
@@ -128,31 +131,143 @@ def delineate_metro(cfg: Config, gdf):
         seed = near[0]
 
     bridge = int(m.get("bridge_gap", 2))
-    metro_cells = _connected_component(seed, urban, bridge=bridge) if urban else set()
+    land = set(gdf.index)
+    metro_cells = _connected_component(seed, urban, bridge=bridge, land=land) if urban else set()
+    connector_cells = _connector_cells(gdf, urban, metro_cells, land, m) if metro_cells else set()
+    if connector_cells:
+        metro_cells = _connected_component(
+            seed, urban | connector_cells, bridge=bridge, land=land)
+    gdf["is_connector"] = gdf.index.isin(connector_cells)
     gdf["in_metro"] = gdf.index.isin(metro_cells)
     gdf.attrs["metro_cell_count"] = len(metro_cells)
     gdf.attrs["urban_cell_count"] = len(urban)
+    gdf.attrs["connector_cell_count"] = len(connector_cells)
     return gdf
 
 
-def _connected_component(seed: str, allowed: set[str], bridge: int = 1) -> set[str]:
+def _connector_cells(gdf, urban: set[str], metro_cells: set[str],
+                     land: set[str], m) -> set[str]:
+    """Find short supported land gaps that connect real urban clusters."""
+    max_gap = int(m.get("connector_gap", 0))
+    if max_gap <= 0:
+        return set()
+
+    min_component = int(m.get("connector_min_component_cells", 12))
+    connectors: set[str] = set()
+    connected = set(metro_cells)
+
+    changed = True
+    while changed:
+        changed = False
+        outside = urban - connected
+        for comp in _components(outside):
+            if len(comp) < min_component:
+                continue
+            path = _nearest_supported_path(
+                gdf, comp, connected, land, urban, max_gap=max_gap, m=m)
+            if path is None:
+                continue
+            gap_cells = set(path[1:-1])
+            connectors |= gap_cells
+            connected |= set(comp) | gap_cells
+            changed = True
+    return connectors
+
+
+def _components(cells: set[str]) -> list[set[str]]:
+    seen: set[str] = set()
+    out: list[set[str]] = []
+    for cell in cells:
+        if cell in seen:
+            continue
+        comp = {cell}
+        seen.add(cell)
+        q = deque([cell])
+        while q:
+            c = q.popleft()
+            for n in grid.grid_disk(c, 1):
+                if n in cells and n not in seen:
+                    seen.add(n)
+                    comp.add(n)
+                    q.append(n)
+        out.append(comp)
+    return out
+
+
+def _nearest_supported_path(gdf, comp: set[str], connected: set[str],
+                            land: set[str], urban: set[str], max_gap: int, m):
+    best: tuple[int, list[str]] | None = None
+    max_distance = max_gap + 1
+    for a in comp:
+        for b in connected:
+            try:
+                dist = grid.grid_distance(a, b)
+            except Exception:
+                continue
+            if dist < 2 or dist > max_distance:
+                continue
+            if best is not None and dist >= best[0]:
+                continue
+            try:
+                path = grid.grid_path_cells(a, b)
+            except Exception:
+                continue
+            if _is_supported_connector_path(gdf, path, land, urban, max_gap, m):
+                best = (dist, path)
+    return best[1] if best is not None else None
+
+
+def _is_supported_connector_path(gdf, path: list[str], land: set[str],
+                                 urban: set[str], max_gap: int, m) -> bool:
+    gap = path[1:-1]
+    if not gap or len(gap) > max_gap:
+        return False
+    min_road = float(m.get("connector_min_road_km_per_cell", 2.0))
+    min_access = float(m.get("connector_min_establishment_access", 3.0))
+    for cell in gap:
+        if cell not in land or cell in urban:
+            return False
+        row = gdf.loc[cell]
+        if row["road_density_km"] < min_road:
+            return False
+        if row["establishment_access"] < min_access:
+            return False
+    return True
+
+
+def _connected_component(seed: str, allowed: set[str], bridge: int = 1,
+                         land: set[str] | None = None) -> set[str]:
     """BFS over the H3 lattice, staying inside `allowed`.
 
-    `bridge` is how many rings a step may span: bridge=1 is strict adjacency,
-    bridge=2 lets the component jump over a single non-urban cell (a water
-    channel, park, or unbuildable strip) to reach urban land on the far side.
+    `bridge` is how many rings a step may span. Adjacent urban cells always
+    connect. Longer jumps are allowed only when the skipped cells are outside
+    the land grid, so a channel can be crossed but ordinary rural/mountain land
+    cannot be skipped.
     """
     if seed not in allowed:
         return set()
+    land = land or allowed
     seen = {seed}
     q = deque([seed])
     while q:
         c = q.popleft()
         for n in grid.grid_disk(c, bridge):
-            if n in allowed and n not in seen:
+            if n in allowed and n not in seen and _can_step(c, n, land):
                 seen.add(n)
                 q.append(n)
     return seen
+
+
+def _can_step(a: str, b: str, land: set[str]) -> bool:
+    if grid.grid_distance(a, b) <= 1:
+        return True
+    try:
+        path = grid.grid_path_cells(a, b)
+    except Exception:
+        return False
+    # Endpoints are urban land cells. Interior land cells are real non-urban
+    # gaps, so do not jump them; missing land cells are water/excluded context.
+    return all(c not in land for c in path[1:-1])
 
 
 # ----------------------------------------------------------------------

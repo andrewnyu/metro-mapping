@@ -150,12 +150,19 @@ Expected browser behavior:
   `metro.min_poi_per_cell`, or by `metro.min_road_km_per_cell` only when backed
   by `metro.min_establishment_access_for_road_cell`; this keeps rural road
   corridors inside huge city limits from ballooning the metro. Keep the metro as
-  the contiguous component connected to the CBD, and preserve `metro.bridge_gap`
-  so districts split by a water channel/park (Mactan across the Cebu channel)
-  stay attached. Relative ranks (`builtup_score`, land-value) are for
-  price/display only and must not decide the boundary.
+  the contiguous component connected to the CBD. Preserve `metro.bridge_gap`,
+  but only as a bridge across excluded non-land cells; do not let it hop over
+  ordinary rural/mountain land, because that attaches places like Toledo to
+  Metro Cebu. Connector cells may bridge short supported land gaps only when
+  they attach a sizable nearby urban component, and must stay separately flagged
+  for web-app highlighting/audit. Relative ranks (`builtup_score`, land-value)
+  are for price/display only and must not decide the boundary.
 - If a city has sparse POI data, CBD detection should still use the road-density
   core rather than falling back to an arbitrary H3 cell.
+- `src/metro/data.py` fetches POIs in one combined Overpass request, then
+  classifies rows into local categories. Preserve the category-by-category
+  fallback, but avoid reintroducing category-by-category as the default because
+  it slows first-time generation.
 - If you touch city search or the web app build endpoint, preserve exact OSM ID
   fallback support. `webapp/app.js` sends optional `osm_id`, `webapp/serve.py`
   forwards it, `scripts/export_webapp.py` also checks `city.osm_id_fallbacks`,

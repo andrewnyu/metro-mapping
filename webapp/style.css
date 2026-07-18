@@ -21,9 +21,20 @@ a{color:var(--accent);text-decoration:none}
 #sidebar header h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.2px}
 #sidebar header .sub{margin:2px 0 14px;color:var(--muted);font-size:12.5px}
 .control{margin-bottom:18px}
+.control.last{margin-bottom:0}
 .control>label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;
   letter-spacing:.6px;color:var(--muted);margin-bottom:7px}
 .control>label .hint{font-weight:500;text-transform:none;letter-spacing:0;color:#9aa0a6;font-size:10.5px}
+
+.settings-panel{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  margin:0 0 18px;padding:10px 0}
+.settings-panel summary{list-style:none;cursor:pointer;font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.6px;color:var(--muted);display:flex;align-items:center;
+  justify-content:space-between}
+.settings-panel summary::-webkit-details-marker{display:none}
+.settings-panel summary::after{content:"+";font-size:18px;line-height:1;color:var(--accent)}
+.settings-panel[open] summary{margin-bottom:14px}
+.settings-panel[open] summary::after{content:"-"}
 
 select{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;
   font-size:13px;background:var(--panel);cursor:pointer}

@@ -114,10 +114,18 @@ metro:
   # as urban. This keeps rural corridors inside huge city limits from becoming
   # metro, without falling back to a relative percentile cut.
   min_establishment_access_for_road_cell: 3.0
-  # Bridge small non-urban gaps (water channels, parks, unbuildable land) up to
-  # this many H3 rings when growing the metro out from downtown, so districts
-  # separated by a bay/river (e.g. Mactan across the Cebu channel) stay in.
+  # Bridge small excluded non-land gaps (water channels, mapped/removed water)
+  # up to this many H3 rings when growing the metro out from downtown. Ordinary
+  # non-urban land is not bridged, so mountain/rural gaps do not attach places
+  # like Toledo to Metro Cebu.
   bridge_gap: 2
+  # Connector cells are weak-but-supported land cells used only to attach a
+  # meaningful nearby urban cluster to the CBD-connected metro. They are kept
+  # separate from urban cells so the web app can highlight/audit them.
+  connector_gap: 2
+  connector_min_component_cells: 12
+  connector_min_road_km_per_cell: 2.0
+  connector_min_establishment_access: 3.0
   # Relative built-up score kept only as a display/colour metric in the web app.
   builtup_weights:
     poi_density:  0.5

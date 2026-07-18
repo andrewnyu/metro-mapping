@@ -6,7 +6,7 @@
 <title>Metro-Mapping — Metro area & land value</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-<link href="style.css?v=5" rel="stylesheet" />
+<link href="style.css?v=7" rel="stylesheet" />
 </head>
 <body>
 <div id="app">
@@ -39,34 +39,39 @@
       <div id="cityStats" class="stats-grid"></div>
     </div>
 
-    <div class="control">
-      <label>Colour by</label>
-      <select id="metricSelect"></select>
-    </div>
+    <details class="settings-panel">
+      <summary>Settings</summary>
 
-    <div class="control">
-      <label>Colour scale</label>
-      <div class="segmented small" id="scaleToggle">
-        <button data-scale="linear" class="active">Linear</button>
-        <button data-scale="log">Log</button>
+      <div class="control">
+        <label>Colour by</label>
+        <select id="metricSelect"></select>
       </div>
-    </div>
 
-    <div class="control" id="weightsControl">
-      <label>Land-value weights <span class="hint">— tune the model live</span></label>
-      <div id="weights"></div>
-      <button id="resetWeights" class="link-btn">reset to defaults</button>
-    </div>
-
-    <div class="control">
-      <label>Layers</label>
-      <div class="toggles">
-        <label class="chk"><input type="checkbox" id="tglMetro" checked> Metro boundary</label>
-        <label class="chk"><input type="checkbox" id="tglWater" checked> Bodies of water</label>
-        <label class="chk"><input type="checkbox" id="tglMetroOnly"> Metro cells only</label>
-        <label class="chk"><input type="checkbox" id="tglPois"> POIs</label>
+      <div class="control">
+        <label>Colour scale</label>
+        <div class="segmented small" id="scaleToggle">
+          <button data-scale="linear" class="active">Linear</button>
+          <button data-scale="log">Log</button>
+        </div>
       </div>
-    </div>
+
+      <div class="control" id="weightsControl">
+        <label>Land-value weights <span class="hint">— tune the model live</span></label>
+        <div id="weights"></div>
+        <button id="resetWeights" class="link-btn">reset to defaults</button>
+      </div>
+
+      <div class="control last">
+        <label>Layers</label>
+        <div class="toggles">
+          <label class="chk"><input type="checkbox" id="tglMetro" checked> Metro boundary</label>
+          <label class="chk"><input type="checkbox" id="tglConnectors"> Connector cells</label>
+          <label class="chk"><input type="checkbox" id="tglMetroOnly" checked> Metro cells only</label>
+          <label class="chk"><input type="checkbox" id="tglWater"> Bodies of water</label>
+          <label class="chk"><input type="checkbox" id="tglPois"> POIs</label>
+        </div>
+      </div>
+    </details>
 
     <div id="legend"></div>
 
@@ -100,6 +105,6 @@
 <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
