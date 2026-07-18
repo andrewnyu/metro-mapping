@@ -95,10 +95,21 @@ landvalue:
     road_density:        0.10   # local street connectivity
 
 # --- Metro delineation -------------------------------------------------
-# A cell is "urban" if its built-up score is above this percentile. The
-# metro = the urban cells contiguously connected to the CBD cell.
+# The metro footprint is the set of *urban* cells contiguously connected to
+# downtown. "Urban" uses an ABSOLUTE bar (not a percentile of the city's own
+# distribution) so the metro grows with the real built-up extent instead of
+# being capped at a fixed fraction of the city. A cell counts as urban if it
+# has enough establishments OR a dense-enough local road grid — both are per
+# H3 cell (~0.46 km² at res 8). Density/land-value ranks stay relative; they
+# are only for price prediction, not for the metro boundary.
 metro:
-  urban_percentile: 70
+  min_poi_per_cell: 3       # >= this many POIs in the cell -> urban
+  min_road_km_per_cell: 4.0 # OR >= this many km of road in the cell -> urban
+  # Bridge small non-urban gaps (water channels, parks, unbuildable land) up to
+  # this many H3 rings when growing the metro out from downtown, so districts
+  # separated by a bay/river (e.g. Mactan across the Cebu channel) stay in.
+  bridge_gap: 2
+  # Relative built-up score kept only as a display/colour metric in the web app.
   builtup_weights:
     poi_density:  0.5
     road_density: 0.5

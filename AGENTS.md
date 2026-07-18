@@ -144,10 +144,14 @@ Expected browser behavior:
 - If you touch water masking or web exports, keep the water layer contract in
   sync: manifest city entries include `water`, and `webapp/app.js` loads it
   under the land-value cells.
-- If you touch metro delineation, preserve the distinction between the
-  administrative study envelope and the metro footprint. Empty cells should not
-  become urban through percentile ranking; threshold among cells with positive
-  built-up signal, then keep the component connected to the CBD.
+- If you touch metro delineation, keep it on an **absolute** urban bar
+  (`metro.min_poi_per_cell` OR `metro.min_road_km_per_cell` per cell), not a
+  percentile of the city's own distribution — a relative cut caps the metro at a
+  fixed fraction of any city and made Cebu far too small. Keep the metro as the
+  contiguous component connected to the CBD, and preserve `metro.bridge_gap` so
+  districts split by a water channel/park (Mactan across the Cebu channel) stay
+  attached. Relative ranks (`builtup_score`, land-value) are for price/display
+  only and must not decide the boundary.
 - If a city has sparse POI data, CBD detection should still use the road-density
   core rather than falling back to an arbitrary H3 cell.
 - If you touch city search or the web app build endpoint, preserve exact OSM ID

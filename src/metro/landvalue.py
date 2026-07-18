@@ -15,12 +15,15 @@ the feature table and app don't change.
 
 METRO DELINEATION
 -----------------
-A cell is "urban" if its built-up score (POI + road density) is above a
-percentile among cells with positive built-up signal. True empty cells stay at
-zero rather than receiving a middle percentile rank. The metro footprint = the
-urban cells contiguously connected to the downtown cell on the H3 lattice. This
-mirrors how urban extents and commuting zones are built: a thresholded core
-grown by adjacency inside the larger administrative study area.
+Kept deliberately separate from the (relative) land-value score. A cell is
+"urban" by an ABSOLUTE bar — it has at least `min_poi_per_cell` establishments
+OR at least `min_road_km_per_cell` km of road — judged on its own terms, not by
+percentile rank within the city. The metro footprint = the urban cells
+contiguously connected to the downtown cell on the H3 lattice, where contiguity
+may bridge up to `bridge_gap` rings so districts split by a water channel, park,
+or unbuildable strip (e.g. Mactan across the Cebu channel) stay attached. This
+gives a roughly real built-up extent (for area / traffic / commute-flow use)
+instead of a fixed fraction of whatever city you point it at.
 """
 from __future__ import annotations
 
@@ -85,18 +88,29 @@ def compute_land_value(cfg: Config, gdf):
 
 # ----------------------------------------------------------------------
 def delineate_metro(cfg: Config, gdf):
+    """Metro = urban cells (absolute bar) contiguously connected to downtown.
+
+    Urban is judged per cell on its own terms — establishments or a dense road
+    grid — not by percentile rank, so the footprint reflects the real built-up
+    extent. Small non-urban gaps (water/parks/unbuildable land) are bridged so
+    districts separated by a channel stay attached.
+    """
     gdf = gdf.copy()
-    bw = cfg["metro"]["builtup_weights"]
-    builtup = (
+    m = cfg["metro"]
+
+    # Relative built-up score is kept only as a display metric for the web app.
+    bw = m["builtup_weights"]
+    gdf["builtup_score"] = (
         bw["poi_density"] * _positive_rank01(gdf["poi_weighted_density"])
         + bw["road_density"] * _positive_rank01(gdf["road_density_km"])
-    )
-    gdf["builtup_score"] = builtup.values
+    ).values
 
-    pct = cfg["metro"]["urban_percentile"]
-    positive = builtup[builtup > 0]
-    thresh = np.percentile(positive, pct) if len(positive) else np.inf
-    gdf["is_urban"] = ((builtup > 0) & (builtup >= thresh)).values
+    # Absolute urban criterion: enough establishments OR a dense-enough road grid.
+    min_poi = float(m.get("min_poi_per_cell", 3))
+    min_road = float(m.get("min_road_km_per_cell", 4.0))
+    gdf["is_urban"] = (
+        (gdf["poi_count"] >= min_poi) | (gdf["road_density_km"] >= min_road)
+    ).values
 
     # Seed = downtown cell (or nearest urban cell to it).
     cbd_lat, cbd_lng = gdf.attrs.get("cbd", (gdf.lat.mean(), gdf.lng.mean()))
@@ -107,22 +121,28 @@ def delineate_metro(cfg: Config, gdf):
         near = gdf.loc[list(urban)].sort_values("dist_cbd_km").index
         seed = near[0]
 
-    metro_cells = _connected_component(seed, urban) if urban else set()
+    bridge = int(m.get("bridge_gap", 2))
+    metro_cells = _connected_component(seed, urban, bridge=bridge) if urban else set()
     gdf["in_metro"] = gdf.index.isin(metro_cells)
     gdf.attrs["metro_cell_count"] = len(metro_cells)
-    gdf.attrs["urban_threshold"] = float(thresh)
+    gdf.attrs["urban_cell_count"] = len(urban)
     return gdf
 
 
-def _connected_component(seed: str, allowed: set[str]) -> set[str]:
-    """BFS over H3 neighbours, staying inside `allowed`."""
+def _connected_component(seed: str, allowed: set[str], bridge: int = 1) -> set[str]:
+    """BFS over the H3 lattice, staying inside `allowed`.
+
+    `bridge` is how many rings a step may span: bridge=1 is strict adjacency,
+    bridge=2 lets the component jump over a single non-urban cell (a water
+    channel, park, or unbuildable strip) to reach urban land on the far side.
+    """
     if seed not in allowed:
         return set()
     seen = {seed}
     q = deque([seed])
     while q:
         c = q.popleft()
-        for n in grid.grid_disk(c, 1):
+        for n in grid.grid_disk(c, bridge):
             if n in allowed and n not in seen:
                 seen.add(n)
                 q.append(n)

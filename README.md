@@ -220,7 +220,10 @@ Important fields:
   nearby roads, POIs, or boundary contact.
 - `landvalue.decay_scale_km`: distance decay scales for accessibility.
 - `landvalue.weights`: model component weights.
-- `metro.urban_percentile`: built-up threshold for metro delineation.
+- `metro.min_poi_per_cell` / `metro.min_road_km_per_cell`: the **absolute** bar
+  for a cell to count as urban (establishments OR road density, per H3 cell).
+- `metro.bridge_gap`: how many H3 rings the contiguous metro may jump to cross a
+  water channel / park / unbuildable gap (2 keeps districts like Mactan in).
 - `osm.overpass_urls`: Overpass endpoints tried in order when downloading OSM
   roads, POIs, and water.
 - `osm.point_boundary_km`: radius used when OSM has a city point but no boundary
@@ -231,10 +234,18 @@ Important fields:
 - The administrative boundary is only the study envelope.
 - Downtown is detected from the smoothed built-up core, with road density
   carrying the signal when POI data is sparse.
-- The metro area is the contiguous urban core connected to downtown.
-- Empty cells with no POIs or roads stay non-urban.
-- Large rural or island portions of a city should remain outside the metro
-  unless they have enough built-up signal.
+- A cell is **urban** by an absolute bar — enough establishments *or* a
+  dense-enough road grid — **not** a percentile of the city's own distribution.
+  This keeps the metro from being capped at a fixed fraction of a city, so it
+  grows with the real built-up extent (Cebu ≈ 400 km², reaching Mandaue,
+  Lapu-Lapu/Mactan, Talisay, Consolacion).
+- The metro area is the urban cells **contiguously connected to downtown** on
+  the H3 graph, allowing small **bridged gaps** so a district separated by a
+  bay/river/park (Mactan across the channel) is not dropped.
+- Relative land-value / density ranks are for **price prediction only**; the
+  metro boundary never uses them.
+- Empty cells with no POIs or roads stay non-urban; rural/island portions stay
+  out unless they meet the absolute bar and connect to the core.
 
 ## Model Summary
 
@@ -258,13 +269,17 @@ Distance features become access scores with exponential decay. Density and
 gravity-style features are percentile ranked to reduce the impact of skew and
 outliers. The final `land_value_index` is min-max scaled to 0-100.
 
-The metro footprint is a graph problem over the H3 lattice:
+The metro footprint is a graph problem over the H3 lattice, kept independent of
+the relative land-value score:
 
-1. Compute built-up score from POI density and road density, preserving true
-   zero values for cells with no signal.
-2. Mark positive-signal cells above `metro.urban_percentile` as urban.
-3. Find the H3 cell containing the CBD, or the nearest urban cell to it.
-4. Keep the contiguous urban component connected to that seed.
+1. Mark a cell urban by an absolute bar: `poi_count >= metro.min_poi_per_cell`
+   OR `road_density_km >= metro.min_road_km_per_cell`.
+2. Find the H3 cell containing the CBD, or the nearest urban cell to it.
+3. Grow the contiguous urban component from that seed, allowing steps of up to
+   `metro.bridge_gap` rings to cross water channels / parks / unbuildable gaps.
+
+(`builtup_score` is still computed as a relative rank, but only as a web-app
+display metric — it no longer decides the boundary.)
 
 ## Data And Generated Files
 
