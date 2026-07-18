@@ -20,6 +20,8 @@ a{color:var(--accent);text-decoration:none}
 }
 #sidebar header h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.2px}
 #sidebar header .sub{margin:2px 0 14px;color:var(--muted);font-size:12.5px}
+.view-tabs{margin:0 0 18px;flex:0 0 auto}
+.view-tabs button{padding:9px 8px}
 .control{margin-bottom:18px}
 .control.last{margin-bottom:0}
 .control>label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;
@@ -79,6 +81,14 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
 .mini-stat .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.45px;color:var(--muted);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mini-stat .v{font-family:"Roboto Mono",monospace;font-size:13px;font-weight:500;margin-top:2px}
+
+.model-card{margin:0 0 18px;padding:11px 12px;border:1px solid #c9daf8;background:#f4f8ff;
+  border-radius:10px;font-size:11px;line-height:1.45;color:var(--muted)}
+.model-card .model-title{font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px}
+.model-card .model-number{font-family:"Roboto Mono",monospace;font-size:17px;font-weight:700;
+  color:var(--accent);margin:2px 0 5px}
+.model-card .warn{color:#9a6700;margin-top:5px}
+.model-card .model-weights{margin-top:6px;color:#3c4043;font-size:10px;line-height:1.45}
 
 /* checkbox toggles */
 .toggles{display:flex;flex-direction:column;gap:8px}

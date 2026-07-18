@@ -13,7 +13,9 @@ from shapely.geometry.base import BaseGeometry
 
 from . import features as feat
 from . import grid
+from . import economics
 from . import landvalue
+from . import pricing
 from .config import Config
 from .data import CityData, load_city_data
 
@@ -88,6 +90,8 @@ def run(cfg: Config, rebuild: bool = False, force_synthetic: bool = False, progr
     gdf, city = load_or_build_features(
         cfg, rebuild=rebuild, force_synthetic=force_synthetic, progress=progress)
     gdf = landvalue.run_model(cfg, gdf)
+    gdf = economics.attach_area_features(cfg, gdf)
+    gdf = pricing.apply_price_model(cfg, gdf)
     return gdf, city
 
 

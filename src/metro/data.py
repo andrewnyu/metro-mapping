@@ -214,8 +214,87 @@ def _buffer_region(boundary: gpd.GeoDataFrame, buffer_km: float) -> Polygon:
 
 
 def _fetch_pois(ox, study: Polygon, cfg: Config) -> gpd.GeoDataFrame:
+    try:
+        gdf = ox.features_from_polygon(study, _combined_poi_tags(cfg))
+        return _pois_from_osm_features(gdf, cfg)
+    except Exception as combined_exc:
+        warnings.warn(
+            f"Combined POI fetch failed ({type(combined_exc).__name__}: {combined_exc}); "
+            "falling back to category-by-category fetch.",
+            stacklevel=2,
+        )
+        return _fetch_pois_by_category(ox, study, cfg, first_failure=combined_exc)
+
+
+def _combined_poi_tags(cfg: Config) -> dict:
+    tags: dict = {}
+    for spec in cfg["poi_categories"].values():
+        for key, wanted in spec["tags"].items():
+            if wanted is True:
+                tags[key] = True
+                continue
+            if tags.get(key) is True:
+                continue
+            values = wanted if isinstance(wanted, list) else [wanted]
+            tags.setdefault(key, [])
+            for value in values:
+                if value not in tags[key]:
+                    tags[key].append(value)
+    return tags
+
+
+def _pois_from_osm_features(gdf: gpd.GeoDataFrame, cfg: Config) -> gpd.GeoDataFrame:
+    if gdf.empty:
+        return gpd.GeoDataFrame(
+            {"category": [], "weight": [], "lng": [], "lat": []}, geometry=[], crs=WGS84
+        )
+    gdf = gdf.to_crs(WGS84)
+    rows = []
+    geoms = []
+    for _, row in gdf.iterrows():
+        if row.geometry is None or row.geometry.is_empty:
+            continue
+        pt = row.geometry.representative_point()
+        for category, spec in cfg["poi_categories"].items():
+            if _feature_matches_tags(row, spec["tags"]):
+                rows.append({
+                    "category": category,
+                    "weight": float(spec["weight"]),
+                    "lng": pt.x,
+                    "lat": pt.y,
+                })
+                geoms.append(pt)
+    if not rows:
+        return gpd.GeoDataFrame(
+            {"category": [], "weight": [], "lng": [], "lat": []}, geometry=[], crs=WGS84
+        )
+    return gpd.GeoDataFrame(rows, geometry=geoms, crs=WGS84)
+
+
+def _feature_matches_tags(row: pd.Series, tags: dict) -> bool:
+    return any(_tag_matches(row.get(key), wanted) for key, wanted in tags.items())
+
+
+def _tag_matches(value, wanted) -> bool:
+    if value is None:
+        return False
+    try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    if wanted is True:
+        return True
+    wanted_values = wanted if isinstance(wanted, list) else [wanted]
+    actual_values = value if isinstance(value, list) else [value]
+    return any(str(actual) == str(w) for actual in actual_values for w in wanted_values)
+
+
+def _fetch_pois_by_category(
+    ox, study: Polygon, cfg: Config, first_failure: Exception | None = None
+) -> gpd.GeoDataFrame:
     frames = []
-    failures = []
+    failures = [first_failure] if first_failure is not None else []
     for category, spec in cfg["poi_categories"].items():
         tags = dict(spec["tags"])
         try:

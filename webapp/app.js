@@ -1,6 +1,6 @@
-/* Metro-Mapping — metro area & relative land value (MapLibre GL) */
+/* Metro-Mapping — metro area & calibrated commercial-land estimates (MapLibre GL) */
 const state = {
-  city: null, metric: "land_value", scale: "linear",
+  city: null, view: "metro", metric: "land_value", scale: "linear",
   weights: [], selected: null, hover: null,
   metroOnly: true, showMetro: true, showConnectors: false, showWater: false, showPois: false,
 };
@@ -12,6 +12,8 @@ const CAT_COLORS = {
   hospital: "#911eb4", government: "#42d4f4", bank: "#bfef45", leisure: "#469990",
 };
 const fmt = (v, d = 1) => v == null || !isFinite(v) ? "—" : d3.format("," + "." + d + "f")(v);
+const fmtMoney = v => v == null || !isFinite(v) ? "—" : "₱" + d3.format(",.0f")(v);
+const fmtMetric = (v, m = metric()) => m?.key === "land_price" ? fmtMoney(v) : fmt(v, m?.key === "land_value" ? 0 : 1);
 const metric = () => MAN.metrics.find(m => m.key === state.metric);
 
 init();
@@ -22,8 +24,8 @@ async function init() {
 
   refreshCitySelect();
 
-  // metric dropdown + weight sliders
-  $("#metricSelect").innerHTML = MAN.metrics.map(m => `<option value="${m.key}">${m.label}</option>`).join("");
+  // The tabs own the displayed metric. Metro delineation never depends on
+  // the optional price model or its generated fields.
   $("#weights").innerHTML = MAN.component_labels.map((lbl, i) =>
     `<div class="wrow"><label>${lbl}</label>` +
     `<input type="range" min="0" max="1" step="0.05" value="${state.weights[i]}" data-i="${i}">` +
@@ -162,14 +164,14 @@ async function loadCity(slug) {
   const el = document.createElement("div"); el.className = "cbd-marker";
   cbdMarker = new maplibregl.Marker({ element: el }).setLngLat(CITY.center).addTo(map);
 
-  $("#matchNote").textContent =
-    `${CITY.source === "synthetic" ? "Synthetic demo data" : "OpenStreetMap"} · ` +
-    `${CITY.n_pois.toLocaleString()} POIs`;
+  renderMatchNote();
   renderCityStats();
+  renderPriceModelCard();
 
   clearSelection();
   recolor();
-  const bounds = state.metroOnly ? geojsonBounds(METRO) : null;
+  const useMetroBounds = state.view === "prices" || (state.view === "metro" && state.metroOnly);
+  const bounds = useMetroBounds ? geojsonBounds(METRO) : null;
   map.fitBounds(bounds || [[CITY.bbox[0], CITY.bbox[1]], [CITY.bbox[2], CITY.bbox[3]]],
     { padding: 36, duration: 600 });
   $("#loading").classList.add("hidden");
@@ -177,10 +179,129 @@ async function loadCity(slug) {
   if (state.showPois) ensurePoisLoaded();
 }
 
+function activateView(view, fit = true) {
+  state.view = view;
+  state.metric = view === "prices" ? "land_price" : "land_value";
+  state.scale = view === "prices" ? "log" : "linear";
+  setActive("#viewTabs", $(`#viewTabs button[data-view="${view}"]`));
+  $("#weightsControl").classList.toggle("hidden", view !== "metro");
+  document.querySelectorAll(".metro-option").forEach(el =>
+    el.classList.toggle("hidden", view !== "metro"));
+  $("#priceModelCard").classList.toggle("hidden", view !== "prices");
+  $("#cityMetricsLabel").textContent = view === "prices" ? "Price-market features" : "Metro metrics";
+  if (CITY && CELLS) {
+    applyLayerState();
+    renderCityStats();
+    renderPriceModelCard();
+    renderMatchNote();
+    clearSelection();
+    recolor();
+    if (fit) {
+      const useMetroBounds = view === "prices" || (view === "metro" && state.metroOnly);
+      const bounds = useMetroBounds ? geojsonBounds(METRO) : null;
+      map.fitBounds(bounds || [[CITY.bbox[0], CITY.bbox[1]], [CITY.bbox[2], CITY.bbox[3]]],
+        { padding: 36, duration: 450 });
+    }
+  }
+}
+
+function renderMatchNote() {
+  if (!CITY) return;
+  const source = CITY.source === "synthetic" ? "Synthetic demo data" : "OpenStreetMap";
+  if (state.view === "prices") {
+    const note = CITY.price_model_status === "trained"
+      ? (CITY.price_market_baseline_source === "top_market_anchor"
+        ? `${(CITY.price_anchor_n_observations || 0).toLocaleString()} local top-market listings · index-applied`
+        : CITY.price_market_baseline_source === "deposit_per_cell_comparable_cities"
+        ? `${(CITY.price_comparable_city_donors || []).length} comparable metros · deposits/cell scaled · index-applied`
+        : `${(CITY.price_model_n_market_observations || 0).toLocaleString()} markets · ` +
+          `${(CITY.price_model_n_labels || 0).toLocaleString()} underlying listings`)
+      : (CITY.price_model_status === "no_metro_cells"
+        ? "commercial price withheld · no functional metro cells"
+        : CITY.price_model_status === "insufficient_economic_evidence"
+        ? "commercial price withheld · no matched bank-deposit evidence"
+        : CITY.price_model_status === "insufficient_commercial_evidence"
+        ? "commercial price withheld · insufficient local listings"
+        : "commercial price model unavailable");
+    $("#matchNote").textContent = `${source} geometry · ${note}`;
+  } else {
+    $("#matchNote").textContent = `${source} · ${CITY.n_pois.toLocaleString()} POIs`;
+  }
+}
+
+function renderPriceModelCard() {
+  if (!CITY || state.view !== "prices") return;
+  const card = $("#priceModelCard");
+  if (CITY.price_model_status !== "trained") {
+    const insufficient = CITY.price_model_status === "insufficient_commercial_evidence";
+    const noEconomic = CITY.price_model_status === "insufficient_economic_evidence";
+    const noMetro = CITY.price_model_status === "no_metro_cells";
+    card.innerHTML = `<div class="model-title">Commercial price unavailable</div>` +
+      `<div>${noMetro
+        ? "No cells currently qualify for the functional metro, so there is no supported pricing footprint."
+        : noEconomic
+        ? "No matched bank-deposit amount is available, so the comparable-city ratio cannot be calculated."
+        : insufficient
+        ? "This metro does not have enough deduplicated local commercial-lot listings to set a defensible peso anchor."
+        : "Build the trained commercial-land artifact before using this view."}</div>`;
+    return;
+  }
+  const isTopAnchor = CITY.price_market_baseline_source === "top_market_anchor";
+  const isComparable = CITY.price_market_baseline_source === "deposit_per_cell_comparable_cities";
+  const donors = CITY.price_comparable_city_donors || [];
+  const donorSummary = donors.map(d =>
+    `${d.city} ×${fmt(d.deposit_density_ratio, 2)}`).join(", ");
+  const anchor = isTopAnchor
+    ? `${(CITY.price_anchor_n_observations || 0).toLocaleString()} deduplicated listings in ` +
+      `${(CITY.price_anchor_market_areas || []).join(", ") || "listing-rich top markets"}`
+    : isComparable
+      ? `scaled from ${donorSummary || "similar anchored metros"} using the target/donor bank-deposits-per-land-cell ratio`
+    : (CITY.price_market_baseline_source === "observed_market_calibration"
+      ? "calibrated to observed local commercial-lot markets"
+      : "predicted from the economic market model");
+  const learnedWeights = MAN.weights_model?.status === "trained"
+    ? MAN.component_labels.map((label, i) =>
+        `${label}: ${fmt((MAN.weights_default[MAN.components[i]] || 0) * 100, 0)}%`).join(" · ")
+    : "configured spatial weights";
+  card.innerHTML =
+    `<div class="model-title">${isTopAnchor ? "Top-market commercial-land anchor" : isComparable ? "Comparable-city commercial estimate" : "Commercial vacant-land baseline"}</div>` +
+    `<div class="model-number">${fmtMoney(CITY.price_market_baseline_php_sqm)}/m²</div>` +
+    `<div>${anchor}. ${isTopAnchor
+      ? `The anchor sits at the ${fmt((CITY.price_anchor_score_quantile || 0.9) * 100, 0)}th score percentile; the index spreads it across cells.`
+      : isComparable
+      ? "The inferred baseline is the score-weighted average across metro cells; each cell receives its relative accessibility share."
+      : "Cell prices follow the area-normalized accessibility score."}</div>` +
+    `<div class="model-weights">Spatial weights: ${learnedWeights}. Prices are shown only inside the functional metro.</div>` +
+    `<div class="warn">${isTopAnchor
+      ? "The tighter interval estimates anchor uncertainty, not the full spread of parcel asking prices."
+      : isComparable
+      ? "Comparable-city estimates depend on the bank-deposit-per-cell relationship and donor similarity."
+      : `Held-out-city MAE: ${fmtMoney(CITY.price_model_mae_php_sqm)}/m².`} ` +
+    `Commercial vacant-land asking-price model, not an appraisal.</div>`;
+}
+
 function renderCityStats() {
   const nMetro = CITY.n_metro ?? CELLS.features.filter(f => f.properties.mt).length;
   const nConnectors = CITY.n_connectors ?? CELLS.features.filter(f => f.properties.cn).length;
-  const stats = [
+  const stats = state.view === "prices" ? [
+    ["Population", fmt(CITY.population, 0)],
+    ["Bank deposits", CITY.bank_deposits_php ? "₱" + d3.format(".3s")(CITY.bank_deposits_php) : "—"],
+    [CITY.price_market_baseline_source === "top_market_anchor" ? "Local anchors"
+      : CITY.price_market_baseline_source === "deposit_per_cell_comparable_cities" ? "Comparable metros"
+      : "Training markets",
+      (CITY.price_market_baseline_source === "top_market_anchor"
+        ? CITY.price_anchor_n_observations
+        : CITY.price_market_baseline_source === "deposit_per_cell_comparable_cities"
+        ? (CITY.price_comparable_city_donors || []).length
+        : CITY.price_model_n_market_observations || 0).toLocaleString()],
+    [CITY.price_market_baseline_source === "deposit_per_cell_comparable_cities"
+      ? "Deposits / land cell" : "Held-out cities",
+      CITY.price_market_baseline_source === "deposit_per_cell_comparable_cities"
+        ? (CITY.price_target_bank_deposits_per_land_cell_php
+          ? "₱" + d3.format(".3s")(CITY.price_target_bank_deposits_per_land_cell_php) : "—")
+        : (CITY.price_model_n_cities || 0).toLocaleString()],
+    ["Priced metro cells", (CITY.n_price_cells || 0).toLocaleString()],
+  ] : [
     ["Metro cells", nMetro.toLocaleString()],
     ["Metro area", fmt(CITY.metro_km2, 0) + " km²"],
     ["Connectors", nConnectors.toLocaleString()],
@@ -212,6 +333,13 @@ function recolor() {
   computeLV();
   const m = metric();
   const vals = CELLS.features.map(f => cellVal(f.properties)).filter(v => v != null && isFinite(v));
+  if (!vals.length) {
+    for (const f of CELLS.features) {
+      map.setFeatureState({ source: "cells", id: f.properties.id }, { fill: "#e6ebf0" });
+    }
+    $("#legend").innerHTML = `<div class="cap">${m.label}</div><div class="hint">No values for this city.</div>`;
+    renderList(); return;
+  }
   let mn = d3.min(vals), mx = d3.max(vals);
   const interp = d3.interpolateYlOrRd;
   if (state.scale === "log") {
@@ -239,7 +367,7 @@ function renderLegend(mn, mx) {
     return colorScale(v);
   });
   let ticks = state.scale === "log"
-    ? [0.01, 0.1, 1, 10, 100, 1000, 10000].filter(t => t >= mn * .9 && t <= mx * 1.1)
+    ? d3.ticks(Math.log10(mn), Math.log10(mx), 4).map(t => 10 ** t)
     : d3.ticks(mn, mx, 4);
   const pos = t => state.scale === "log"
     ? (Math.log(t) - Math.log(mn)) / (Math.log(mx) - Math.log(mn)) * 100 : (t - mn) / (mx - mn) * 100;
@@ -247,7 +375,7 @@ function renderLegend(mn, mx) {
   $("#legend").innerHTML =
     `<div class="cap">${m.label}${m.reverse ? " (near = high)" : ""}</div>` +
     `<div class="bar" style="background:linear-gradient(90deg,${grad.join(",")})"></div>` +
-    `<div class="ticks">${ticks.map(t => `<span>${fmt(t, t < 10 ? 1 : 0)}</span>`).join("")}</div>`;
+    `<div class="ticks">${ticks.map(t => `<span>${fmtMetric(t, m)}</span>`).join("")}</div>`;
 }
 
 /* ---------------- ranked list ---------------- */
@@ -260,7 +388,7 @@ function renderList() {
   $("#topList").innerHTML = rows.map(r =>
     `<li data-id="${r.id}"><span class="swatch" style="background:${colorScale(r.v)}"></span>` +
     `<span class="nm" title="${r.id}">${r.id.slice(0, 8)}… · ${r.p.pc} POIs</span>` +
-    `<span class="vl">${fmt(r.v, m.key === "land_value" ? 0 : 1)}</span></li>`).join("");
+    `<span class="vl">${fmtMetric(r.v, m)}</span></li>`).join("");
   $("#topList").querySelectorAll("li").forEach(li => li.onclick = () => select(li.dataset.id, true));
 }
 
@@ -273,9 +401,15 @@ function onHover(e) {
   map.setFeatureState({ source: "cells", id }, { hover: true });
   map.getCanvas().style.cursor = "pointer";
   const p = e.features[0].properties, t = $("#tooltip");
+  const activeValue = cellVal(p);
+  const priceLine = state.view === "prices" && p.ppsm != null
+    ? `<div class="t-name">${fmtMoney(p.ppsm)}/m² estimated</div>`
+    : `<div class="t-name">Relative value ${fmt(LV[id], 0)}/100</div>`;
   t.innerHTML =
-    `<div class="t-name">Land value ${fmt(LV[id], 0)}</div>` +
-    `<div class="t-val" style="font-size:12px">${metric().label}: ${fmt(cellVal(p), 2)}</div>` +
+    priceLine +
+    (activeValue != null && isFinite(activeValue)
+      ? `<div class="t-val" style="font-size:12px">${metric().label}: ${fmtMetric(activeValue)}</div>`
+      : `<div class="t-val" style="font-size:12px">Commercial price unavailable</div>`) +
     `<div class="t-sub">${fmt(p.dcbd, 1)} km to downtown · ${p.pc} POIs</div>` +
     `<div class="t-sub t-muted">${cellStatus(p)}</div>`;
   t.style.left = e.point.x + "px"; t.style.top = e.point.y + "px";
@@ -308,11 +442,30 @@ function renderDetail() {
     `<div class="d-name">Cell ${p.id.slice(0, 10)}…</div>` +
     `<div class="d-loc">${fmt(p.dcbd, 2)} km from downtown · ` +
     `<span class="${p.mt ? "up" : "down"}">${cellStatus(p)}</span></div>`;
-  $("#detailStats").innerHTML =
-    stat("Land value", fmt(LV[p.id], 0) + " <small>/100</small>") +
+  const spatialStats =
+    stat("Relative value", fmt(LV[p.id], 0) + " <small>/100</small>") +
+    stat("Value share", fmt((p.rvs || 0) * 100, 3) + "<small>%</small>") +
     stat("Establishments", fmt(p.ea, 1)) +
     stat("POIs in cell", p.pc) +
     stat("Road density", fmt(p.rdk, 2) + " <small>km</small>");
+  $("#detailStats").innerHTML = state.view === "prices"
+    ? (p.ppsm != null ? stat("Estimated price", fmtMoney(p.ppsm) + " <small>/m²</small>") : "") +
+      (p.plo != null && p.phi != null ? stat(
+        CITY.price_market_baseline_source === "top_market_anchor" ? "Anchor-based range"
+          : CITY.price_market_baseline_source === "deposit_per_cell_comparable_cities" ? "Comparable-city range"
+          : "Indicative range",
+        fmtMoney(p.plo) + "–" + fmtMoney(p.phi)) : "") +
+      spatialStats
+    : spatialStats;
+  $("#detailFoot").textContent = state.view === "prices"
+    ? (CITY.price_model_status !== "trained"
+      ? "Commercial price is withheld because this city lacks a supported metro footprint or matched bank-deposit evidence."
+      : CITY.price_market_baseline_source === "top_market_anchor"
+      ? "A local commercial-market median anchors the price curve; learned positive spatial weights supply the metro-only multiplier."
+      : CITY.price_market_baseline_source === "deposit_per_cell_comparable_cities"
+      ? "Similar anchored cities set the baseline through bank deposits per land cell; the normalized score allocates it across metro cells."
+      : "The ML model estimates the city baseline; the chart explains the normalized spatial multiplier.")
+    : "The chart explains the relative accessibility score used by the metro analysis.";
   $("#detail").classList.remove("hidden");
   drawCompChart(p);
 }
@@ -366,11 +519,9 @@ function geojsonBounds(fc) {
 /* ---------------- controls ---------------- */
 function wireControls() {
   $("#citySelect").addEventListener("change", e => loadCity(e.target.value));
-  $("#metricSelect").addEventListener("change", e => { state.metric = e.target.value; recolor(); });
-
-  $("#scaleToggle").addEventListener("click", e => {
+  $("#viewTabs").addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
-    setActive("#scaleToggle", b); state.scale = b.dataset.scale; recolor();
+    activateView(b.dataset.view);
   });
 
   $("#weights").addEventListener("input", e => {
@@ -426,11 +577,12 @@ async function ensurePoisLoaded() {
 
 function applyLayerState() {
   if (!map?.getLayer("metro-line")) return;
-  const cellFilter = state.metroOnly ? ["==", ["get", "mt"], 1] : null;
+  const metroView = state.view === "metro";
+  const cellFilter = !metroView || state.metroOnly ? ["==", ["get", "mt"], 1] : null;
   map.setFilter("cells-fill", cellFilter);
   map.setFilter("cells-line", cellFilter);
-  map.setLayoutProperty("metro-line", "visibility", state.showMetro ? "visible" : "none");
-  const connectorVis = state.showConnectors ? "visible" : "none";
+  map.setLayoutProperty("metro-line", "visibility", metroView && state.showMetro ? "visible" : "none");
+  const connectorVis = metroView && state.showConnectors ? "visible" : "none";
   map.setLayoutProperty("connector-fill", "visibility", connectorVis);
   map.setLayoutProperty("connector-line", "visibility", connectorVis);
   const waterVis = state.showWater ? "visible" : "none";

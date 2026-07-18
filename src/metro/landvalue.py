@@ -30,12 +30,56 @@ while avoiding premature cuts through lightly mapped urban corridors.
 from __future__ import annotations
 
 from collections import deque
+import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from . import grid
-from .config import Config
+from .config import Config, REPO_ROOT
+
+
+COMPONENT_NAMES = (
+    "access_cbd", "access_major_road", "establishment_access",
+    "poi_density", "road_density",
+)
+WEIGHT_ARTIFACT_VERSION = 1
+
+
+def weight_artifact_path(cfg: Config) -> Path:
+    raw = Path(cfg.get("weight_model", {}).get(
+        "artifact", "data/models/landvalue_weight_model.json"))
+    return raw if raw.is_absolute() else REPO_ROOT / raw
+
+
+def weight_model_metadata(cfg: Config) -> dict:
+    path = weight_artifact_path(cfg)
+    if not path.exists():
+        return {"status": "not_trained", "artifact": str(path)}
+    try:
+        metadata = json.loads(path.read_text())
+        if metadata.get("artifact_version") != WEIGHT_ARTIFACT_VERSION:
+            raise ValueError("unsupported artifact version")
+        if tuple(metadata.get("components", [])) != COMPONENT_NAMES:
+            raise ValueError("component order mismatch")
+        return {"status": "trained", "artifact": str(path), **metadata}
+    except Exception as exc:
+        return {
+            "status": "error", "artifact": str(path),
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+
+def effective_weights(cfg: Config) -> dict[str, float]:
+    metadata = weight_model_metadata(cfg)
+    source = metadata.get("weights") if metadata.get("status") == "trained" else None
+    source = source or cfg["landvalue"]["weights"]
+    weights = {name: max(float(source.get(name, 0)), 0.0) for name in COMPONENT_NAMES}
+    total = sum(weights.values())
+    if total <= 0:
+        return {name: 1.0 / len(COMPONENT_NAMES) for name in COMPONENT_NAMES}
+    return {name: value / total for name, value in weights.items()}
 
 
 # ----------------------------------------------------------------------
@@ -64,7 +108,7 @@ def _positive_rank01(s: pd.Series) -> pd.Series:
 def compute_land_value(cfg: Config, gdf):
     gdf = gdf.copy()
     scales = cfg["landvalue"]["decay_scale_km"]
-    weights = cfg["landvalue"]["weights"]
+    weights = effective_weights(cfg)
 
     # Distance -> access (0..1-ish), then min-max for comparability.
     gdf["access_cbd"] = np.exp(-gdf["dist_cbd_km"] / scales["cbd"])
@@ -85,6 +129,16 @@ def compute_land_value(cfg: Config, gdf):
     score = sum(weights[k] * components[k] for k in components) / total_w
     gdf["land_value_score"] = score.values
     gdf["land_value_index"] = (_minmax(score) * 100).round(2).values
+    # Auditable share of the study area's scored land value.  H3 cells at one
+    # resolution are almost equal-area, but use projected cell areas so this
+    # stays unit-correct across latitude and clipped/custom grids.
+    metric = gdf.to_crs(gdf.estimate_utm_crs())
+    area_sqm = metric.geometry.area.clip(lower=1.0)
+    scored_area = score.clip(lower=0).to_numpy() * area_sqm.to_numpy()
+    denom = float(scored_area.sum())
+    gdf["relative_value_share"] = scored_area / denom if denom > 0 else 1.0 / len(gdf)
+    gdf.attrs["landvalue_weights"] = weights
+    gdf.attrs["landvalue_weight_model"] = weight_model_metadata(cfg)
     return gdf
 
 

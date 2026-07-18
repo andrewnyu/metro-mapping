@@ -1,0 +1,197 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-cebu-kamputhaw",
+        "place": "Cebu City, Philippines",
+        "market_area": "Kamputhaw / Escario",
+        "price_per_sqm_php": 60000,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/commercial-lot-sale-kamputhaw-cebu-property",
+        "location_source_url": "https://www.openstreetmap.org/search?query=Kamputhaw%20Cebu%20City",
+        "location_precision": "named-area centroid"
+      },
+      "geometry": {"type": "Point", "coordinates": [123.8945, 10.3148]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-cebu-talamban",
+        "place": "Cebu City, Philippines",
+        "market_area": "Talamban",
+        "price_per_sqm_php": 35000,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/commercial-lot-for-sale-cebu-city/page/2",
+        "location_source_url": "https://www.openstreetmap.org/search?query=Talamban%20Cebu%20City",
+        "location_precision": "barangay centroid"
+      },
+      "geometry": {"type": "Point", "coordinates": [123.9178, 10.3695]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-cebu-ipi",
+        "place": "Cebu City, Philippines",
+        "market_area": "IPI corridor",
+        "price_per_sqm_php": 190000,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/commercial-lot-for-sale-cebu-city/page/2",
+        "location_source_url": "https://www.openstreetmap.org/search?query=IPI%20Cebu%20City",
+        "location_precision": "named-landmark corridor"
+      },
+      "geometry": {"type": "Point", "coordinates": [123.9304, 10.3341]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-cebu-srp",
+        "place": "Cebu City, Philippines",
+        "market_area": "South Road Properties",
+        "price_per_sqm_php": 360000,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/commercial-lot-for-sale-cebu-city-cebu",
+        "location_source_url": "https://www.openstreetmap.org/search?query=South%20Road%20Properties%20Cebu",
+        "location_precision": "named-development centroid"
+      },
+      "geometry": {"type": "Point", "coordinates": [123.8825, 10.2750]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-davao-mamay",
+        "place": "Davao City, Philippines",
+        "market_area": "Mamay Road",
+        "price_per_sqm_php": 60000,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/commercial-lot-for-sale-davao-city",
+        "location_source_url": "https://www.openstreetmap.org/search?query=Mamay%20Road%20Davao%20City",
+        "location_precision": "road-corridor centroid"
+      },
+      "geometry": {"type": "Point", "coordinates": [125.6405, 7.1085]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-davao-r-castillo",
+        "place": "Davao City, Philippines",
+        "market_area": "R. Castillo / Agdao",
+        "price_per_sqm_php": 71428,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/commercial-lot-for-sale-davao-city",
+        "location_source_url": "https://www.openstreetmap.org/search?query=R.%20Castillo%20Agdao%20Davao",
+        "location_precision": "road-corridor centroid"
+      },
+      "geometry": {"type": "Point", "coordinates": [125.6305, 7.0905]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-davao-matina",
+        "place": "Davao City, Philippines",
+        "market_area": "Matina Crossing",
+        "price_per_sqm_php": 83333,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/commercial-lot-for-sale-davao-city",
+        "location_source_url": "https://www.openstreetmap.org/search?query=Matina%20Crossing%20Davao%20City",
+        "location_precision": "named-area centroid"
+      },
+      "geometry": {"type": "Point", "coordinates": [125.5887, 7.0605]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-davao-ulas",
+        "place": "Davao City, Philippines",
+        "market_area": "Ulas",
+        "price_per_sqm_php": 32500,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/commercial-lot-for-sale-davao-city",
+        "location_source_url": "https://www.openstreetmap.org/search?query=Ulas%20Davao%20City",
+        "location_precision": "named-area centroid"
+      },
+      "geometry": {"type": "Point", "coordinates": [125.5700, 7.0440]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-davao-obrero",
+        "place": "Davao City, Philippines",
+        "market_area": "Obrero / Victoria Plaza",
+        "price_per_sqm_php": 93750,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/commercial-lot-for-sale-davao-city",
+        "location_source_url": "https://www.openstreetmap.org/search?query=Victoria%20Plaza%20Davao%20City",
+        "location_precision": "named-landmark corridor"
+      },
+      "geometry": {"type": "Point", "coordinates": [125.6030, 7.0840]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-iloilo-mandurriao",
+        "place": "Iloilo City, Philippines",
+        "market_area": "Mandurriao / Festive Walk",
+        "price_per_sqm_php": 115000,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/amp/commercial-lot-for-sale-iloilo-city",
+        "location_source_url": "https://www.openstreetmap.org/search?query=Festive%20Walk%20Iloilo",
+        "location_precision": "named-landmark corridor"
+      },
+      "geometry": {"type": "Point", "coordinates": [122.5508, 10.7160]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-iloilo-buntatala",
+        "place": "Iloilo City, Philippines",
+        "market_area": "Buntatala / Jaro",
+        "price_per_sqm_php": 25000,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/amp/commercial-lot-for-sale-iloilo-city",
+        "location_source_url": "https://www.openstreetmap.org/search?query=Buntatala%20Jaro%20Iloilo",
+        "location_precision": "named-area centroid"
+      },
+      "geometry": {"type": "Point", "coordinates": [122.5650, 10.7570]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "label_id": "commercial-iloilo-diversion",
+        "place": "Iloilo City, Philippines",
+        "market_area": "Diversion Road business district",
+        "price_per_sqm_php": 150000,
+        "listing_observations": 1,
+        "property_type": "commercial vacant lot",
+        "observed_at": "2026-07-18",
+        "price_source_url": "https://onepropertee.com/amp/commercial-lot-for-sale-iloilo-city",
+        "location_source_url": "https://www.openstreetmap.org/search?query=Diversion%20Road%20Iloilo%20Business%20District",
+        "location_precision": "road-corridor centroid"
+      },
+      "geometry": {"type": "Point", "coordinates": [122.5510, 10.7090]}
+    }
+  ]
+}

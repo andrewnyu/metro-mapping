@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import geopandas as gpd  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from metro import grid, mapviz, pipeline  # noqa: E402
+from metro import grid, landvalue, mapviz, pipeline  # noqa: E402
 from metro.config import load_config, normalise_osm_id  # noqa: E402
 
 WEBAPP_DATA = Path(__file__).resolve().parents[1] / "webapp" / "data"
@@ -38,7 +38,7 @@ WEBAPP_DATA = Path(__file__).resolve().parents[1] / "webapp" / "data"
 COMPONENTS = ["access_cbd", "access_major_road", "establishment_access",
               "poi_density", "road_density"]
 
-# metrics offered in the "Colour by" dropdown
+# exported metric definitions; the app's view tabs choose the active one
 METRICS = [
     {"key": "land_value", "label": "Land-value index", "prop": "lv", "log": False, "reverse": False},
     {"key": "establishment_access", "label": "Establishment access", "prop": "ea", "log": True, "reverse": False},
@@ -47,6 +47,10 @@ METRICS = [
     {"key": "dist_cbd", "label": "Distance to downtown", "prop": "dcbd", "log": False, "reverse": True},
     {"key": "builtup", "label": "Built-up score", "prop": "bs", "log": False, "reverse": False},
 ]
+PRICE_METRIC = {
+    "key": "land_price", "label": "Estimated commercial land price (PHP/sqm)",
+    "prop": "ppsm", "log": True, "reverse": False,
+}
 
 
 def r(x, n=4):
@@ -87,17 +91,29 @@ def _area_km2(gdf_or_geom) -> float:
 
 def export_city(
     cfg, place: str, synthetic: bool = False, rebuild: bool = False,
-    progress=None, osm_id: str | None = None,
+    progress=None, osm_id: str | None = None, require_osm: bool = False,
 ) -> dict:
     place = _resolved_place(cfg, place)
     cfg["city"]["place"] = place
     raw_osm_id = osm_id or _fallback_osm_id(cfg, place)
     cfg["city"]["osm_id"] = normalise_osm_id(raw_osm_id) if raw_osm_id else None
-    slug = cfg.city_slug()
+    base_slug = cfg.city_slug()
+    slug = f"{base_slug}_synthetic" if synthetic else base_slug
     # Pipeline drives 0..0.9; file writing takes the last 10%.
     gdf, city = pipeline.run(
         cfg, rebuild=rebuild, force_synthetic=synthetic,
         progress=(lambda f, m: progress(f * 0.9, m)) if progress else None)
+    if require_osm and not synthetic and city.source != "osm":
+        if cfg["city"].get("osm_id"):
+            detail = f" Tried exact OSM ID {cfg['city']['osm_id']}."
+        else:
+            detail = (
+                " Try a fuller name, e.g. “Davao City, Philippines”, or provide "
+                "an exact OSM relation ID."
+            )
+        if city.source_error:
+            detail += f" OSM error: {city.source_error}"
+        raise LookupError(f"Couldn't build “{place}” from OpenStreetMap.{detail}")
     if progress:
         progress(0.92, "Writing GeoJSON layers…")
 
@@ -105,6 +121,11 @@ def export_city(
     ex = gdf[["geometry"]].copy()
     ex["id"] = gdf["h3"].values
     ex["lv"] = gdf["land_value_index"].round(2).values
+    ex["rvs"] = gdf["relative_value_share"].round(8).values
+    if gdf["land_price_php_sqm"].notna().any():
+        ex["ppsm"] = gdf["land_price_php_sqm"].round(0).values
+        ex["plo"] = gdf["land_price_low_php_sqm"].round(0).values
+        ex["phi"] = gdf["land_price_high_php_sqm"].round(0).values
     for i, comp in enumerate(COMPONENTS):
         ex[f"c{i}"] = gdf[f"norm_{comp}"].round(4).values
     ex["ea"] = gdf["establishment_access"].round(3).values
@@ -172,10 +193,15 @@ def export_city(
     city_area = _area_km2(city.boundary) if city.boundary is not None and not city.boundary.empty else 0
     study_area = _area_km2(city.study_region)
     land_area = _area_km2(gdf)
+    econ = gdf.attrs.get("economics", {})
+    price_model = gdf.attrs.get("price_model", {})
+    first = gdf.iloc[0]
     print(f"  {place:32} land={len(gdf):>5}  metro={int(gdf['in_metro'].sum()):>4}  "
           f"water_excl={gdf.attrs.get('n_water_excluded', 0):>4}")
     return {
-        "slug": slug, "name": place.split(",")[0], "place": place,
+        "slug": slug,
+        "name": place.split(",")[0] + (" (synthetic)" if synthetic else ""),
+        "place": place,
         "osm_id": cfg["city"].get("osm_id"),
         "center": [r(cbd_lng, 5), r(cbd_lat, 5)],
         "bbox": [r(b[0], 5), r(b[1], 5), r(b[2], 5), r(b[3], 5)],
@@ -187,6 +213,35 @@ def export_city(
         "study_km2": r(study_area, 1), "land_km2": r(land_area, 1),
         "source": city.source,
         "source_error": city.source_error,
+        "population": int(first["city_population"]) if pd.notna(first["city_population"]) else None,
+        "bank_deposits_php": r(first["bank_deposits_php"], 0)
+        if pd.notna(first["bank_deposits_php"]) else None,
+        "local_tax_revenue_php": r(first["local_tax_revenue_php"], 0)
+        if pd.notna(first["local_tax_revenue_php"]) else None,
+        "economics": econ,
+        "price_model_status": price_model.get("status", "not_trained"),
+        "price_property_segment": price_model.get("property_segment"),
+        "n_price_cells": price_model.get("priced_cell_count", 0),
+        "price_geography": price_model.get("price_geography"),
+        "price_model_n_labels": price_model.get("n_labels"),
+        "price_model_n_market_observations": price_model.get("n_market_observations"),
+        "price_model_n_cities": price_model.get("n_cities"),
+        "price_model_mae_php_sqm": price_model.get("mae_php_sqm"),
+        "price_model_median_ape": price_model.get("median_ape"),
+        "price_market_baseline_php_sqm": price_model.get("market_baseline_php_sqm"),
+        "price_market_baseline_source": price_model.get("market_baseline_source"),
+        "price_interval_method": price_model.get("interval_method"),
+        "price_anchor_n_observations": price_model.get("local_anchor_n_observations"),
+        "price_anchor_n_listings": price_model.get("local_anchor_n_listings"),
+        "price_anchor_market_areas": price_model.get("local_anchor_market_areas", []),
+        "price_anchor_score_quantile": price_model.get("local_anchor_score_quantile"),
+        "price_anchor_confidence_level": price_model.get("local_anchor_confidence_level"),
+        "price_comparable_city_method": price_model.get("comparable_city_method"),
+        "price_comparable_city_donors": price_model.get("comparable_city_donors", []),
+        "price_target_bank_deposits_per_land_cell_php": price_model.get(
+            "target_bank_deposits_per_land_cell_php"),
+        "price_target_n_land_cells": price_model.get("target_n_land_cells"),
+        "price_model_validation": price_model.get("validation"),
     }
 
 
@@ -200,12 +255,16 @@ def read_manifest() -> dict | None:
 
 
 def build_manifest(cfg, cities: list[dict]) -> dict:
+    metrics = list(METRICS)
+    if any(c.get("price_model_status") == "trained" for c in cities):
+        metrics.insert(0, PRICE_METRIC)
     return {
         "cities": cities,
         "components": COMPONENTS,
         "component_labels": ["Downtown", "Major road", "Establishments", "POI density", "Road density"],
-        "weights_default": dict(cfg["landvalue"]["weights"]),
-        "metrics": METRICS,
+        "weights_default": landvalue.effective_weights(cfg),
+        "weights_model": landvalue.weight_model_metadata(cfg),
+        "metrics": metrics,
         "poi_categories": list(cfg["poi_categories"].keys()),
     }
 
@@ -219,8 +278,27 @@ def upsert_city(cfg, city: dict) -> dict:
     man = read_manifest() or build_manifest(cfg, [])
     man["cities"] = [c for c in man["cities"] if c["slug"] != city["slug"]] + [city]
     man["cities"].sort(key=lambda c: c["name"])
+    refreshed = build_manifest(cfg, man["cities"])
+    for key in (
+        "components", "component_labels", "weights_default", "weights_model",
+        "metrics", "poi_categories",
+    ):
+        man[key] = refreshed[key]
     write_manifest(man)
     return man
+
+
+def register_exports(cfg, cities: list[dict], replace: bool = False) -> dict:
+    """Register exports while preserving saved cities unless replacement is explicit."""
+    if replace:
+        manifest = build_manifest(cfg, cities)
+        write_manifest(manifest)
+        return manifest
+
+    manifest = read_manifest() or build_manifest(cfg, [])
+    for city in cities:
+        manifest = upsert_city(cfg, city)
+    return manifest
 
 
 def export_and_register(
@@ -232,21 +310,8 @@ def export_and_register(
     cfg = load_config()
     city = export_city(
         cfg, place, synthetic=synthetic, rebuild=rebuild,
-        progress=progress, osm_id=osm_id,
+        progress=progress, osm_id=osm_id, require_osm=not synthetic,
     )
-    if not synthetic and city.get("source") != "osm":
-        # OSM geocode/fetch failed and the pipeline fell back to synthetic —
-        # remove the stray files, don't register, surface a helpful error.
-        for key in ("cells", "metro", "pois", "water"):
-            (WEBAPP_DATA / city[key]).unlink(missing_ok=True)
-        if city.get("osm_id"):
-            detail = f" Tried exact OSM ID {city['osm_id']}."
-        else:
-            detail = " Try a fuller name, e.g. “Davao City, Philippines”, or provide an exact OSM relation ID."
-        if city.get("source_error"):
-            detail += f" OSM error: {city['source_error']}"
-        raise LookupError(
-            f"Couldn't build “{place}” from OpenStreetMap.{detail}")
     upsert_city(cfg, city)
     if progress:
         progress(1.0, "Done")
@@ -258,6 +323,10 @@ def main() -> None:
     ap.add_argument("--places", nargs="*", help="City names (default: config city).")
     ap.add_argument("--synthetic", action="store_true")
     ap.add_argument("--rebuild", action="store_true")
+    ap.add_argument(
+        "--replace-manifest", action="store_true",
+        help="Replace the saved-city list instead of upserting exported cities.",
+    )
     args = ap.parse_args()
 
     WEBAPP_DATA.mkdir(parents=True, exist_ok=True)
@@ -265,9 +334,16 @@ def main() -> None:
     places = args.places or [cfg["city"]["place"]]
 
     print(f"Exporting {len(places)} city(ies) -> {WEBAPP_DATA}")
-    cities = [export_city(cfg, p, args.synthetic, args.rebuild) for p in places]
-    write_manifest(build_manifest(cfg, cities))
-    print(f"Wrote manifest.json ({len(cities)} cities). Serve with: bash webapp/serve.sh")
+    cities = [
+        export_city(
+            cfg, p, synthetic=args.synthetic, rebuild=args.rebuild,
+            require_osm=not args.synthetic,
+        )
+        for p in places
+    ]
+    manifest = register_exports(cfg, cities, replace=args.replace_manifest)
+    print(f"Wrote manifest.json ({len(manifest['cities'])} cities). "
+          "Serve with: bash webapp/serve.sh")
 
 
 if __name__ == "__main__":

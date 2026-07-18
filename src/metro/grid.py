@@ -37,6 +37,14 @@ def grid_disk(cell: str, k: int = 1) -> list[str]:
     return list(h3.grid_disk(cell, k) if _V4 else h3.k_ring(cell, k))
 
 
+def grid_distance(a: str, b: str) -> int:
+    return int(h3.grid_distance(a, b) if _V4 else h3.h3_distance(a, b))
+
+
+def grid_path_cells(a: str, b: str) -> list[str]:
+    return list(h3.grid_path_cells(a, b) if _V4 else h3.h3_line(a, b))
+
+
 def edge_length_km(res: int) -> float:
     if _V4:
         return h3.average_hexagon_edge_length(res, unit="km")

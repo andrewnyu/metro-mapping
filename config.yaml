@@ -99,6 +99,92 @@ landvalue:
     poi_density:         0.10   # raw POI count in/around the cell
     road_density:        0.10   # local street connectivity
 
+# --- Supervised spatial-index weights --------------------------------
+# The simple constrained model learns from source-backed commercial market labels.
+# Floors encode Philippine monotonic priors while the training loop tunes the
+# remaining allocation using leave-one-market-area-out validation.
+weight_model:
+  labels_file: "reference_data/commercial_land_spatial_markets.geojson"
+  artifact: "data/models/landvalue_weight_model.json"
+  minimum_labels: 6
+  prior_weights:
+    access_cbd: 0.15
+    access_major_road: 0.30
+    establishment_access: 0.25
+    poi_density: 0.20
+    road_density: 0.10
+  minimum_weights:
+    access_cbd: 0.10
+    access_major_road: 0.25
+    establishment_access: 0.20
+    poi_density: 0.15
+    road_density: 0.05
+  regularization_grid: [0.3, 1.0, 3.0, 10.0, 30.0, 100.0]
+
+# --- Area-level economic context --------------------------------------
+# Build this ignored/generated table from the sibling bank-deposit project:
+#   python scripts/build_economic_reference.py \
+#     --bank-project /path/to/ph-bank-deposits
+# Optional BLGF city tax-receipt columns can be merged by that script.
+economics:
+  reference_file: "data/economic_features.csv"
+  place_aliases: {}
+
+# --- Supervised commercial vacant-land price model --------------------
+# Listings are asking/minimum prices with provenance, not completed sales.
+# The model trains across multiple cities and validates by holding out whole
+# cities so population/deposit features cannot leak through a random row split.
+price_model:
+  market_observations_file: "reference_data/commercial_land_market_observations.json"
+  top_market_anchors_file: "reference_data/commercial_land_top_market_anchors.json"
+  labels_file: "data/commercial_land_price_listings.csv"
+  artifact: "data/models/land_price_model.joblib"
+  minimum_market_observations: 15
+  minimum_market_cities: 10
+  min_price_per_sqm_php: 250
+  max_price_per_sqm_php: 1000000
+  land_type_terms: ["land", "lot"]
+  required_property_type_terms: ["commercial"]
+  improvement_terms: ["house", "condo", "townhouse", "building", "improvement"]
+  # Blend learned cell variation with score/area-weighted relative allocation.
+  # 0 = learned model only; 1 = all local variation follows the relative index.
+  relative_score_blend: 1.0
+  # Where a city has enough deduplicated top-market listings, anchor their
+  # robust median at this land-value-score quantile and spread it over cells.
+  minimum_top_anchor_observations: 3
+  # For a city without local listings, take the nearest anchored markets in
+  # deposits-per-analyzed-land-cell space, scale their anchors by the exact
+  # deposit-density ratio, and similarity-weight their implied baselines.
+  comparable_city_fallback:
+    n_neighbors: 3
+    similarity_bandwidth_log: 0.75
+    deposit_ratio_exponent: 1.0
+    deposit_ratio_min: 0.01
+    deposit_ratio_max: 100.0
+    interval_min_log: 0.25
+    interval_max_log: 0.65
+  top_anchor_score_quantile: 0.90
+  relative_score_elasticity: 0.65
+  relative_multiplier_min: 0.10
+  relative_multiplier_max: 1.35
+  anchor_interval_z: 1.2816       # central 80% confidence interval
+  anchor_interval_min_log: 0.12
+  anchor_interval_max_log: 0.35
+  estimator:
+    learning_rate: 0.05
+    max_iter: 300
+    max_leaf_nodes: 5
+    min_samples_leaf: 2
+    l2_regularization: 1.0
+  # Small grid selected on the same city-held-out folds used for reporting.
+  tuning:
+    max_leaf_nodes: [3, 5, 7]
+    min_samples_leaf: [2, 3]
+    l2_regularization: [1.0]
+  market_tuning:
+    min_samples_leaf: [2, 3]
+    max_features: [0.7, 1.0]
+
 # --- Metro delineation -------------------------------------------------
 # The metro footprint is the set of *urban* cells contiguously connected to
 # downtown. "Urban" uses an ABSOLUTE bar (not a percentile of the city's own

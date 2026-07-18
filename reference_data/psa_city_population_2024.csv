@@ -1,0 +1,16 @@
+core_city,psgc_code,population,population_year,source_url
+Angeles,0330100000,483452,2024,https://psa.gov.ph/classification/psgc/cities
+Bacolod,1830200000,624787,2024,https://psa.gov.ph/classification/psgc/cities
+Baguio,1430300000,368426,2024,https://psa.gov.ph/classification/psgc/cities
+Batangas,0401005000,358267,2024,https://psa.gov.ph/classification/psgc/cities
+Cagayan de Oro,1030500000,741617,2024,https://psa.gov.ph/classification/psgc/cities
+Cebu,0730600000,965332,2024,https://psa.gov.ph/classification/psgc/cities
+Dagupan,0105518000,174777,2024,https://psa.gov.ph/classification/psgc/cities
+Davao,1130700000,1848947,2024,https://psa.gov.ph/classification/psgc/cities
+Iloilo,0631000000,473728,2024,https://psa.gov.ph/classification/psgc/cities
+Manila,1380600000,1902590,2024,https://psa.gov.ph/classification/psgc/cities
+Naga,0501724000,210545,2024,https://psa.gov.ph/classification/psgc/cities
+Puerto Princesa,1731500000,316384,2024,https://psa.gov.ph/classification/psgc/cities
+Surigao,1606724000,177333,2024,https://psa.gov.ph/classification/psgc/cities
+Tacloban,0831600000,259353,2024,https://psa.gov.ph/classification/psgc/cities
+Zamboanga,0931700000,1018849,2024,https://psa.gov.ph/classification/psgc/cities

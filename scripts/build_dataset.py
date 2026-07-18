@@ -60,9 +60,21 @@ def main() -> None:
     print(f"Saved polygon  -> {rel(outputs['geojson'])}")
     print(f"Saved map      -> {rel(outputs['map'])}  (open in a browser)")
 
-    top = gdf.sort_values("land_value_index", ascending=False).head(5)
-    print("\nTop land-value cells:")
-    print(top[["h3", "dist_cbd_km", "poi_count", "land_value_index"]].to_string(index=False))
+    econ = gdf.attrs.get("economics", {})
+    print(f"Economic data : {econ.get('status', 'unmatched')}"
+          f" ({econ.get('deposit_scope', 'no deposit scope')})")
+    price_meta = gdf.attrs.get("price_model", {})
+    if price_meta.get("status") == "trained":
+        top = gdf.sort_values("land_price_php_sqm", ascending=False).head(5)
+        print(f"Price model   : {price_meta.get('n_labels', 0):,} labels, "
+              f"grouped MAE P{price_meta.get('mae_php_sqm', 0):,.0f}/sqm")
+        print("\nTop estimated-price cells:")
+        print(top[["h3", "dist_cbd_km", "poi_count", "land_price_php_sqm"]].to_string(index=False))
+    else:
+        top = gdf.sort_values("land_value_index", ascending=False).head(5)
+        print("Price model   : not trained (relative index remains available)")
+        print("\nTop relative land-value cells:")
+        print(top[["h3", "dist_cbd_km", "poi_count", "land_value_index"]].to_string(index=False))
 
 
 if __name__ == "__main__":

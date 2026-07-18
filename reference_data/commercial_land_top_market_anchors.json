@@ -1,0 +1,158 @@
+[
+  {
+    "market_id": "anchor-cebu-kamputhaw", "city": "Cebu City", "province": "Cebu",
+    "market_area": "Kamputhaw / Escario", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 60000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/commercial-lot-sale-kamputhaw-cebu-property"
+  },
+  {
+    "market_id": "anchor-cebu-ipi", "city": "Cebu City", "province": "Cebu",
+    "market_area": "IPI corridor", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 190000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/commercial-lot-for-sale-cebu-city/page/2"
+  },
+  {
+    "market_id": "anchor-cebu-central", "city": "Cebu City", "province": "Cebu",
+    "market_area": "Central Cebu City", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 220000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/commercial-lot-for-sale-cebu-city/page/2"
+  },
+  {
+    "market_id": "anchor-cebu-srp", "city": "Cebu City", "province": "Cebu",
+    "market_area": "South Road Properties", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 360000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/commercial-lot-for-sale-cebu-city-cebu"
+  },
+  {
+    "market_id": "anchor-davao-mamay", "city": "Davao City", "province": "Davao del Sur",
+    "market_area": "Mamay Road", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 60000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/commercial-lot-for-sale-davao-city"
+  },
+  {
+    "market_id": "anchor-davao-r-castillo", "city": "Davao City", "province": "Davao del Sur",
+    "market_area": "R. Castillo / Agdao", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 71428, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/commercial-lot-for-sale-davao-city"
+  },
+  {
+    "market_id": "anchor-davao-matina", "city": "Davao City", "province": "Davao del Sur",
+    "market_area": "Matina Crossing", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 83333, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/commercial-lot-for-sale-davao-city"
+  },
+  {
+    "market_id": "anchor-davao-obrero", "city": "Davao City", "province": "Davao del Sur",
+    "market_area": "Obrero / Victoria Plaza", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 93750, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/commercial-lot-for-sale-davao-city"
+  },
+  {
+    "market_id": "anchor-davao-uyanguren", "city": "Davao City", "province": "Davao del Sur",
+    "market_area": "Uyanguren", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 120000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/commercial-lot-for-sale-davao-city"
+  },
+  {
+    "market_id": "anchor-iloilo-mandurriao", "city": "Iloilo City", "province": "Iloilo",
+    "market_area": "Mandurriao / Festive Walk", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 115000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/amp/commercial-lot-for-sale-iloilo-city"
+  },
+  {
+    "market_id": "anchor-iloilo-buntatala", "city": "Iloilo City", "province": "Iloilo",
+    "market_area": "Buntatala / Jaro", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 25000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/amp/commercial-lot-for-sale-iloilo-city"
+  },
+  {
+    "market_id": "anchor-iloilo-diversion", "city": "Iloilo City", "province": "Iloilo",
+    "market_area": "Diversion Road business district", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 150000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/amp/commercial-lot-for-sale-iloilo-city"
+  },
+  {
+    "market_id": "anchor-bacolod-mansilingan", "city": "Bacolod City", "province": "Negros Occidental",
+    "market_area": "Mansilingan / Robinsons", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 35276, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/prime-commercial-lot-property-8797"
+  },
+  {
+    "market_id": "anchor-bacolod-rockwell", "city": "Bacolod City", "province": "Negros Occidental",
+    "market_area": "Rockwell Center Bacolod", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 74000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/one-community-lot-for-sale-bacolod-negros-occidental"
+  },
+  {
+    "market_id": "anchor-bacolod-lasalle", "city": "Bacolod City", "province": "Negros Occidental",
+    "market_area": "La Salle corridor", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 30000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "DotProperty", "source_url": "https://search.dotproperty.com.ph/homes/commercial-lot-bacolod-city"
+  },
+  {
+    "market_id": "anchor-bacolod-mandalagan", "city": "Bacolod City", "province": "Negros Occidental",
+    "market_area": "Mandalagan", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 55000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "Real.ph", "source_url": "https://real.ph/listing/property-8063-for-sale-commercial-lot-in-bacolod-city-negros-occidental"
+  },
+  {
+    "market_id": "anchor-cdo-pueblo-inner", "city": "Cagayan de Oro", "province": "Misamis Oriental",
+    "market_area": "Pueblo Business Park inner lot", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 24640, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "ARCE Real Estate", "source_url": "https://www.realestatecagayan.com/private_listing.php?id=83&tbl=commercial"
+  },
+  {
+    "market_id": "anchor-cdo-pueblo-corner", "city": "Cagayan de Oro", "province": "Misamis Oriental",
+    "market_area": "Pueblo Business Park corner lot", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 30240, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "ARCE Real Estate", "source_url": "https://www.realestatecagayan.com/private_listing.php?id=83&tbl=commercial"
+  },
+  {
+    "market_id": "anchor-cdo-corrales", "city": "Cagayan de Oro", "province": "Misamis Oriental",
+    "market_area": "Corrales / Divisoria", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 70000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "FilipinoHomes", "source_url": "https://filipinohomes.com/commercial-lot-divisoria-area-for-sale"
+  },
+  {
+    "market_id": "anchor-dumaguete-city", "city": "Dumaguete City", "province": "Negros Oriental",
+    "market_area": "Dumaguete City", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 7864, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "OnePropertee", "source_url": "https://onepropertee.com/commercial-lot-sale-dumaguetecity-property"
+  },
+  {
+    "market_id": "anchor-dumaguete-downtown", "city": "Dumaguete City", "province": "Negros Oriental",
+    "market_area": "Downtown Dumaguete", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 60000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "Philippine Island Properties", "source_url": "https://philippine-islandproperties.com/property/downtown-commercial-lot-for-sale/"
+  },
+  {
+    "market_id": "anchor-dumaguete-coastal", "city": "Dumaguete City", "province": "Negros Oriental",
+    "market_area": "South Coastal Road", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 25000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "FazWaz", "source_url": "https://www.fazwaz.ph/property-sales/land-for-sale-in-dumaguete-city-negros-island-region-u2343294"
+  },
+  {
+    "market_id": "anchor-tagbilaran-cogon-lamdagan", "city": "Tagbilaran City", "province": "Bohol",
+    "market_area": "Cogon / Lamdagan Street", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 35000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "DotProperty", "source_url": "https://search.dotproperty.com.ph/homes/commercial-lot-tagbilaran-city"
+  },
+  {
+    "market_id": "anchor-tagbilaran-cogon-torralba", "city": "Tagbilaran City", "province": "Bohol",
+    "market_area": "Cogon / Torralba and Rizal", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 16990, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "DotProperty", "source_url": "https://search.dotproperty.com.ph/homes/commercial-lot-tagbilaran-city"
+  },
+  {
+    "market_id": "anchor-tagbilaran-cpg", "city": "Tagbilaran City", "province": "Bohol",
+    "market_area": "CPG East Avenue", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 30000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "Labella Realty", "source_url": "https://labellarealty.com/property/corner-titled-commercial-lot-for-sale-tagbilaran-city-bohol/"
+  },
+  {
+    "market_id": "anchor-tagbilaran-central", "city": "Tagbilaran City", "province": "Bohol",
+    "market_area": "Central Tagbilaran", "property_type": "commercial vacant lot",
+    "price_per_sqm_php": 150000, "underlying_listings": 1, "observed_at": "2026-07-18",
+    "source": "Hoppler", "source_url": "https://www.hoppler.com.ph/bohol-tagbilaran-city-cs0396971"
+  }
+]
