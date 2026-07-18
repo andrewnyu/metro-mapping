@@ -134,6 +134,13 @@ Expected browser behavior:
   - `scripts/export_webapp.py`
   - `webapp/app.js`
   - any labels or metrics in the manifest
+  - the "Web Data Contract" section in `README.md` (documents the compact
+    property keys `c0..c4`, `ea`, `pwd`, `rdk`, `dcbd`, `pc`, `bs`, `mt` and the
+    manifest fields the frontend reads)
+- After editing `webapp/app.js` or `webapp/style.css`, bump the `?v=N` query on
+  both the `<link>` and `<script>` tags in `webapp/index.html`. Without it,
+  browsers (and the preview harness) can serve a stale cached asset on reload,
+  which looks like "my change did nothing".
 - If you touch water masking or web exports, keep the water layer contract in
   sync: manifest city entries include `water`, and `webapp/app.js` loads it
   under the land-value cells.

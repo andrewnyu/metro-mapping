@@ -156,6 +156,46 @@ exact OpenStreetMap object ID. Use `R...` for relations, `W...` for ways, or
 `N...` for nodes. Bare numeric IDs are treated as relations, and OpenStreetMap
 URLs are accepted too.
 
+## Web Data Contract
+
+The browser app is fed entirely by `webapp/data/`, written by
+`scripts/export_webapp.py`. Property names are shortened to keep the payload
+small; if you add or rename a field, change it in `export_webapp.py`
+(`COMPONENTS` / `METRICS` / the `ex[...]` assignments) **and** in `webapp/app.js`.
+
+`manifest.json`
+
+- `cities[]`: one entry per city, each with `slug`, `name`, `place`, `osm_id`,
+  `center` (`[lng, lat]`), `bbox` (`[minx, miny, maxx, maxy]`), the four layer
+  filenames (`cells`, `metro`, `pois`, `water`), the counts `n_land`, `n_water`,
+  `n_metro`, `n_pois`, the areas `metro_km2` / `city_km2` / `study_km2` /
+  `land_km2`, `source` (`osm` or `synthetic`), and `source_error`.
+- `components`: the five model component keys, in slider order.
+- `component_labels`: human labels for those five.
+- `weights_default`: default component weights (also the reset target).
+- `metrics`: the "Colour by" options, each `{key, label, prop, log, reverse}`.
+- `poi_categories`: category names (match POI `cat`).
+
+`<slug>_cells.geojson` — one feature per land cell:
+
+| key | meaning |
+| --- | --- |
+| `id` | H3 index (feature id via `promoteId`) |
+| `lv` | precomputed land-value index (default weights) |
+| `c0..c4` | normalized components, order = `manifest.components` |
+| `ea` | establishment access (gravity) |
+| `pwd` | POI weighted density |
+| `rdk` | road density, km per cell |
+| `dcbd` | distance to downtown, km |
+| `pc` | POI count in cell |
+| `bs` | built-up score |
+| `mt` | in metro (0/1) |
+
+The land-value index is recomputed **in the browser** from `c0..c4` and the
+weight sliders (`Σ wᵢ·cᵢ / Σ wᵢ`, then min-max to 0-100), so tuning is instant
+and server-free. `<slug>_water.geojson` features carry `id` + `kind`
+(`excluded_cell` or `mapped_water`); `<slug>_pois.geojson` features carry `cat`.
+
 ## Configuration
 
 Most project behavior is controlled from `config.yaml`.
@@ -262,7 +302,10 @@ Keep `data/.gitkeep` and `webapp/data/.gitkeep`.
   visual context only; water cells are still excluded from the land-value model.
 - `export_webapp.py` shortens property names for browser payload size. If you
   add or rename model fields, update both `COMPONENTS`/`METRICS` there and the
-  matching logic in `webapp/app.js`.
+  matching logic in `webapp/app.js`. See "Web Data Contract" above.
+- `webapp/index.html` loads `style.css?v=N` and `app.js?v=N` with a version
+  query. After editing either asset, bump `N` in both `<link>`/`<script>` tags,
+  or browsers may serve a stale cached copy on reload.
 - CLI builds may silently fall back to synthetic data when OSM fails. The
   browser city builder rejects accidental synthetic fallback for real city
   requests.
