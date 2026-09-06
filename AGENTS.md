@@ -15,6 +15,26 @@ The worktree was clean when this handoff document was created. The main docs
 were refreshed in `README.md`, and this `AGENTS.md` was added as the operational
 agent guide.
 
+### Priority (2026-09-06)
+
+**The headline deliverable is the metro delineation, not land value.** Peso-per-
+square-metre valuation is explicitly **deferred to a future project**: usable PH
+transaction data is scarce and asking-price listings are thin. Keep
+`pricing.py`, `train_price_model.py`, `economics.py` and their tests working,
+but treat them as a documented experiment — do not present peso figures as a
+headline result, and do not let price work block metro accuracy work.
+
+Read [`ABSTRACT.md`](ABSTRACT.md) first: it states the problem, the method, and
+the key result (the metro/administrative-area ratio spans 1.3% for Puerto
+Princesa to 182% for Iloilo City — the method must keep contracting for
+sprawling rural jurisdictions *and* expanding across LGU lines for
+conurbations). Any change to delineation should be checked against that spread.
+
+The next data layers under consideration are listed under "Roadmap" in
+`README.md`; electrification/grid and gridded population are Tier 1. Open data
+gaps (Butuan returning 0 POIs; Ormoc/Tagbilaran administrative area resolving to
+a point buffer) are listed under "Known data gaps".
+
 ## First Commands To Run
 
 ```bash
@@ -118,6 +138,13 @@ it. These paths are normally gitignored:
 Keep `.gitkeep` files in generated directories.
 
 ## Verification Recipes
+
+Unit tests (11, offline, ~35s). `tests/conftest.py` puts `src/` on `sys.path`,
+so a bare `pytest` works — no `PYTHONPATH` needed:
+
+```bash
+python -m pytest tests -q
+```
 
 Fast offline smoke test:
 

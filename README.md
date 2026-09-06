@@ -1,18 +1,27 @@
 # Metro-Mapping
 
-Metro-Mapping is a Python geospatial pipeline and static MapLibre web app for
-estimating the functional metro area of a Philippine city and mapping land
-value over an H3 hex grid. It always provides an interpretable relative index;
-after training on observed commercial vacant-land listings, it also provides
-commercial peso-per-square-metre estimates with an indicative uncertainty band.
+Metro-Mapping is a Python geospatial pipeline and static MapLibre web app that
+**delineates the functional metropolitan area of a Philippine city** from open
+data, on an H3 hex grid.
 
-The project is built around a simple idea: fetch city-scale OpenStreetMap data,
-turn the study region into H3 cells, compute accessibility and built-up
-features per cell, combine them with city/metro economic context, and export
-compact GeoJSON for a browser map. A pooled model is deliberately trained and
-validated across cities so metro bank deposits, population, and local tax
-receipts can explain market-level differences without pretending to be
-cell-level measurements.
+Outside Metro Manila, PH metro areas have no statutory boundary, and city
+administrative limits are a poor stand-in in both directions: Puerto Princesa
+and Zamboanga City hold huge, largely rural jurisdictions, while Iloilo City is
+small and heavily conurbated with its neighbours. The pipeline fetches
+city-scale OpenStreetMap data, tiles the study region into H3 cells, marks
+cells urban on an **absolute** bar (establishments, or a corroborated dense road
+grid — never a percentile of the city's own distribution), and keeps the cells
+**contiguously connected to the detected CBD**, bridging short water gaps. The
+result is a reproducible built-up footprint meant as a base layer for
+commute-shed and travel-demand estimation, infrastructure planning, and market
+sizing. See [`ABSTRACT.md`](ABSTRACT.md) for the method and results summary.
+
+> **Land valuation is deferred to a future project.** Usable PH transaction data
+> is scarce and asking-price listings are thin, so the peso-per-square-metre
+> work in this repo (`pricing.py`, `train_price_model.py`, `economics.py`) is
+> retained as a documented **experiment, not a headline result**. The
+> interpretable relative accessibility index remains useful for ranking cells;
+> treat absolute peso figures as indicative only.
 
 ## What It Does
 
@@ -520,14 +529,87 @@ Keep `data/.gitkeep` and `webapp/data/.gitkeep`.
   Web exports and the browser city builder reject accidental synthetic fallback
   for real city requests before changing browser files or the manifest.
 
-## Suggested Next Work
+## Roadmap
 
-- Add tests for H3 grid construction, water masking, and land-value scaling.
-- Add completed-sale/registry labels so asking-price bias can be measured and
-  corrected; expand the current PSA population seed beyond the main metros.
-- Add a source-specific, authorized collector for recurring commercial-lot exports
-  and drift monitoring by observation date.
-- Add travel-time or network accessibility in place of straight-line distance.
-- Add night-lights or gridded population to improve within-city variation.
-- Package the project with `pyproject.toml` so scripts can avoid manual
-  `sys.path` insertion.
+Ordered by value-per-effort for the current goal (an accurate built-up metro
+footprint), not by ambition.
+
+### Tier 1 — biggest wins next
+
+**1. Electrification & grid infrastructure** *(topical: Visayas supply is
+constrained, and power is now a first-order siting constraint)*
+
+- *Night-time lights* — VIIRS / NASA Black Marble (`VNP46A`) or the EOG annual
+  VNL composites, ~500 m. This is the single highest-value addition: an
+  **absolute, globally consistent, mapping-effort-independent** measure of
+  electrified, economically active area. It directly de-biases the urban rule,
+  whose weakness today is uneven OSM POI completeness (see Butuan/San Carlos in
+  "Known data gaps"). Zonal-mean per H3 cell → a second absolute urban
+  criterion. Multi-year composites also measure metro *growth*.
+- *Grid assets from OSM* — already reachable with the existing OSMnx layer:
+  `power=plant` (+`plant:source`: geothermal in Leyte/Negros, coal, solar,
+  wind, hydro, diesel), `power=substation` (+`voltage`), `power=line` /
+  `minor_line` / `tower`. Derive `dist_to_substation_km`,
+  `dist_to_transmission_km`, and nearby capacity by voltage class. Transmission
+  (NGCP) is reasonably mapped in PH; distribution is patchy.
+- *Tariffs & reliability by franchise area* — ERC-published distribution
+  utility rates and SAIDI/SAIFI reliability indices, joined by DU/electric-
+  cooperative franchise area (VECO–Cebu, MORE–Iloilo, CENECO/NONECO–Negros,
+  LEYECO–Leyte, ZAMCELCO–Zamboanga). Semi-structured; moderate scraping effort.
+  A real cost-of-operation input for industrial/commercial siting.
+- *Deprioritised:* live outage feeds — mostly unstructured social-media posts,
+  high effort and low reliability.
+
+**2. Gridded population** — WorldPop or Meta HRSL (~30 m) → population per H3
+cell. Unlocks the *international standard* definition (EU/UN Degree of
+Urbanisation, GHSL): an urban centre is contiguous cells above a population
+density threshold with a minimum total population. That replaces a bespoke
+POI rule with a **citable** one, and yields metro *population* — the headline
+number people want next to area.
+
+**3. Built-up surface** — GHSL `GHS-BUILT-S` (100 m built-up fraction). Pairs
+with population for the Degree-of-Urbanisation method; another absolute signal.
+
+### Tier 2 — accuracy and realism
+
+- **Terrain buildability** — Copernicus GLO-30 / SRTM DEM → slope per cell.
+  Gives a principled "unbuildable" mask (it is why western Cebu's mountains are
+  correctly excluded today only as a side effect of having no POIs/roads).
+- **Network travel time** — route on the OSMnx graph instead of straight-line
+  distance; build 15/30/45-minute isochrones from the CBD. A commuting-flow
+  definition is arguably the *truest* metro boundary (US MSAs are built that
+  way) and directly serves the traffic/commute goal.
+- **Transit, ports, airports** — seaports, airports, and mapped PUV/bus routes
+  as gateway and corridor features.
+- **Hazard layers** — UP/Project NOAH flood and storm-surge, landslide
+  susceptibility. Affects buildability and, later, value.
+
+### Tier 3 — engineering & rigour
+
+- Package with `pyproject.toml` so scripts can drop manual `sys.path` inserts.
+- Extend tests to H3 grid construction, the water/land mask, and delineation
+  (currently covered: economics, manifest, pricing, weight training).
+- Validate delineated footprints against an external reference (PSA urban
+  barangay classification, or GHSL urban centres) and report agreement.
+
+### Deferred — land valuation (future project)
+
+- Completed-sale / registry labels so asking-price bias can be measured and
+  corrected; the current listings are thin and unevenly distributed.
+- A source-specific, authorized collector for recurring commercial-lot exports,
+  with drift monitoring by observation date.
+- Until then, treat peso outputs as indicative and prefer the relative index.
+
+## Known data gaps
+
+Surfaced by the current 17-city run; worth fixing before adding layers:
+
+- **Butuan City** — 0 POIs and 0 metro cells: the POI fetch returned nothing
+  (likely an Overpass failure or a boundary miss). Needs a rebuild/investigation.
+- **Ormoc City (0.8 km²) and Tagbilaran City (0.0 km²)** — administrative area
+  is wrong because the OSM boundary resolved to a point and fell back to a point
+  buffer. Pin an exact OSM relation ID via `city.osm_id` / `osm_id_fallbacks`.
+- **San Carlos City (46 POIs) and Surigao City (209 POIs)** — very low POI
+  counts; verify the geocode resolved to the intended city (San Carlos is
+  ambiguous: Negros Occidental vs Pangasinan) and treat the metro extent as
+  under-estimated until night-lights or population data corroborate it.
