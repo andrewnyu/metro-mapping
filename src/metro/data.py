@@ -181,11 +181,32 @@ def _geocode_boundary(ox, cfg: Config) -> gpd.GeoDataFrame:
     raise LookupError(f"No administrative city boundary found for {place!r}. " + " | ".join(errors))
 
 
+def _reject_out_of_country(gdf: gpd.GeoDataFrame, cfg: Config) -> None:
+    """Reject a geocode whose centroid lands outside the configured country box.
+
+    Ambiguous PH city names can resolve abroad — "San Carlos City, Negros
+    Occidental, Philippines" returns San Carlos, Cojedes, VENEZUELA. Without
+    this guard the pipeline happily analyses the wrong continent.
+    """
+    box = cfg.get("city", {}).get("country_bbox")
+    if not box:
+        return
+    min_lng, min_lat, max_lng, max_lat = (float(v) for v in box)
+    c = gdf.geometry.iloc[0].centroid
+    if not (min_lng <= c.x <= max_lng and min_lat <= c.y <= max_lat):
+        name = str(gdf["display_name"].iloc[0]) if "display_name" in gdf.columns else "result"
+        raise LookupError(
+            f"geocode landed at ({c.x:.3f}, {c.y:.3f}) — outside the configured "
+            f"country bounds {box}: {name}"
+        )
+
+
 def _coerce_city_boundary(gdf: gpd.GeoDataFrame, cfg: Config) -> gpd.GeoDataFrame:
     """Accept admin boundaries or city points; reject schools/airports/malls."""
     gdf = gdf.to_crs(WGS84)
     if gdf.empty:
         raise LookupError("geocode returned no rows")
+    _reject_out_of_country(gdf, cfg)
     geom_type = gdf.geometry.iloc[0].geom_type
     cls = str(gdf["class"].iloc[0]) if "class" in gdf.columns else ""
     typ = str(gdf["type"].iloc[0]) if "type" in gdf.columns else ""

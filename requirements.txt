@@ -10,6 +10,10 @@ shapely>=2.0
 osmnx>=2.0          # OpenStreetMap road networks + POIs
 h3>=4.0            # Uber H3 hexagonal grid
 
+# Raster layers (gridded population, night-time lights)
+rasterio>=1.3       # window-read WorldPop / VIIRS GeoTIFFs
+pillow>=10.0        # decode the GIBS Black Marble WMS PNG fallback
+
 # Modeling
 scikit-learn>=1.3
 scipy>=1.10

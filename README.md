@@ -539,13 +539,14 @@ footprint), not by ambition.
 **1. Electrification & grid infrastructure** *(topical: Visayas supply is
 constrained, and power is now a first-order siting constraint)*
 
-- *Night-time lights* — VIIRS / NASA Black Marble (`VNP46A`) or the EOG annual
-  VNL composites, ~500 m. This is the single highest-value addition: an
-  **absolute, globally consistent, mapping-effort-independent** measure of
-  electrified, economically active area. It directly de-biases the urban rule,
-  whose weakness today is uneven OSM POI completeness (see Butuan/San Carlos in
-  "Known data gaps"). Zonal-mean per H3 cell → a second absolute urban
-  criterion. Multi-year composites also measure metro *growth*.
+- *Night-time lights* — **✅ PROTOTYPED** (`src/metro/nightlights.py`,
+  `scripts/prototype_nightlights.py`). Zonal **mean** per H3 cell (radiance is
+  an intensity, unlike population counts which are summed). Source-agnostic:
+  it uses a calibrated VIIRS GeoTIFF if you supply one (EOG VNL / NASA
+  VNP46A — both behind a free login, so they can't be fetched unattended), and
+  otherwise falls back to the open **NASA GIBS Black Marble WMS**, an 8-bit
+  RGB visualisation that is a *relative* index only. Multi-year calibrated
+  composites would also measure metro *growth*.
 - *Grid assets from OSM* — already reachable with the existing OSMnx layer:
   `power=plant` (+`plant:source`: geothermal in Leyte/Negros, coal, solar,
   wind, hydro, diesel), `power=substation` (+`voltage`), `power=line` /
@@ -560,12 +561,12 @@ constrained, and power is now a first-order siting constraint)*
 - *Deprioritised:* live outage feeds — mostly unstructured social-media posts,
   high effort and low reliability.
 
-**2. Gridded population** — WorldPop or Meta HRSL (~30 m) → population per H3
-cell. Unlocks the *international standard* definition (EU/UN Degree of
-Urbanisation, GHSL): an urban centre is contiguous cells above a population
-density threshold with a minimum total population. That replaces a bespoke
-POI rule with a **citable** one, and yields metro *population* — the headline
-number people want next to area.
+**2. Gridded population — ✅ PROTOTYPED** (`src/metro/population.py`,
+`scripts/prototype_population.py`). WorldPop 100 m constrained counts for PHL
+(~9.5 MB, downloaded once) summed per H3 cell, plus the EU/UN/GHSL **Degree of
+Urbanisation** classifier (urban centre ≥1,500/km² & ≥50k; urban cluster
+≥300/km² & ≥5k). Gives metro *population* and a citable standard alongside the
+bespoke POI rule. See "Prototype findings" below.
 
 **3. Built-up surface** — GHSL `GHS-BUILT-S` (100 m built-up fraction). Pairs
 with population for the Degree-of-Urbanisation method; another absolute signal.
@@ -600,16 +601,58 @@ with population for the Degree-of-Urbanisation method; another absolute signal.
   with drift monitoring by observation date.
 - Until then, treat peso outputs as indicative and prefer the relative index.
 
+## Prototype findings — population & night lights
+
+Run them (read-only; they do not touch exports):
+
+```bash
+python scripts/prototype_population.py                  # all manifest cities
+python scripts/prototype_population.py --detail "Zamboanga City"
+python scripts/prototype_nightlights.py --places "Cebu City" "Butuan City"
+```
+
+**1. DEGURBA independently validates the metro.** For Cebu the urban-centre
+population comes out at **2.86 M** against a ~2.85 M 2020-census Metro Cebu —
+from a completely different signal than the POI rule, which agrees at IoU 0.68.
+
+| City | POI metro km² | metro pop | DEGURBA centre km² | centre pop | IoU |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Cebu City | 339.5 | 2,763,370 | 287.5 | 2,857,350 | 0.68 |
+| Davao City | 474.5 | 1,651,532 | 210.9 | 1,526,238 | 0.38 |
+| Cagayan de Oro | 216.7 | 879,529 | 124.7 | 854,189 | 0.47 |
+| Iloilo City | 199.9 | 648,456 | 121.5 | 593,453 | 0.51 |
+| Zamboanga City | 139.8 | 627,989 | 95.6 | 619,915 | 0.49 |
+| **Butuan City** | **0.0** | **0** | **31.2** | **141,203** | **0.00** |
+| Talibon (Bohol) | 55.6 | 47,272 | **0.0** | **0** | 0.00 |
+
+**2. Population exposes the POI rule's mapping bias.** Butuan returns 0 POIs, so
+the POI rule sees *no city at all* — while population finds a 31 km² urban
+centre of 141k people. Conversely Talibon gets 55.6 km² from POIs but has no
+≥50k high-density cluster, so DEGURBA correctly calls it a town, not a metro.
+The two rules fail in opposite directions; using both is the fix.
+
+**3. It caught a geocoding bug.** "San Carlos City, Negros Occidental,
+Philippines" was resolving to **San Carlos, Cojedes, Venezuela** (lng −68.6).
+The population raster had no data there, which surfaced it. Fixed with an
+`osm_id` fallback (`R145727`) plus a new `city.country_bbox` guard that rejects
+any geocode landing outside the Philippines. POIs went 46 → 526.
+
+**4. Night lights track population.** Spearman ρ(NTL, log pop density) = **0.73**
+for Cebu, with metro cells 4.3× brighter than non-metro (176 vs 41); Zamboanga
+separates 9× (109 vs 12). Lower ρ in smaller cities (0.38-0.44) is expected
+from the 8-bit GIBS fallback — a calibrated VNL raster should improve it.
+*Caveat:* the "bright cells outside metro" counter uses a 90th-percentile cut,
+so it always flags ~10% of cells and should not be read as pure error.
+
 ## Known data gaps
 
-Surfaced by the current 17-city run; worth fixing before adding layers:
-
-- **Butuan City** — 0 POIs and 0 metro cells: the POI fetch returned nothing
-  (likely an Overpass failure or a boundary miss). Needs a rebuild/investigation.
+- **Butuan City** — 0 POIs and 0 metro cells; the POI fetch returns nothing.
+  Population confirms a real 141k urban centre is there, so this is a fetch/
+  boundary bug, not a rural city. Highest-priority fix.
 - **Ormoc City (0.8 km²) and Tagbilaran City (0.0 km²)** — administrative area
   is wrong because the OSM boundary resolved to a point and fell back to a point
   buffer. Pin an exact OSM relation ID via `city.osm_id` / `osm_id_fallbacks`.
-- **San Carlos City (46 POIs) and Surigao City (209 POIs)** — very low POI
-  counts; verify the geocode resolved to the intended city (San Carlos is
-  ambiguous: Negros Occidental vs Pangasinan) and treat the metro extent as
-  under-estimated until night-lights or population data corroborate it.
+- ~~San Carlos City~~ — **fixed** (see finding 3 above).
+- **Surigao City (209 POIs)** — low POI count; metro extent may be
+  under-estimated. DEGURBA gives 16.4 km² / 91.5k against the POI rule's
+  20.5 km², so the two roughly agree here.

@@ -25,6 +25,14 @@ city:
     puerto princesa city: "R9481097"
     puerto princesa: "R9481097"
     zamboanga city: "R3617877"
+    # Nominatim resolves this to San Carlos, Cojedes, VENEZUELA even when the
+    # query says "Negros Occidental, Philippines". Caught by the population
+    # raster falling outside PH bounds. R145727 = San Carlos, Negros Occidental.
+    san carlos city: "R145727"
+    san carlos: "R145727"
+  # Sanity bound: a geocoded boundary whose centroid falls outside this box is
+  # rejected rather than silently analysed. Philippines, with a small margin.
+  country_bbox: [116.0, 4.0, 127.5, 21.5]   # [min_lng, min_lat, max_lng, max_lat]
   place_aliases:
     surigao: "Surigao City, Philippines"
   # How far (km) beyond the official city boundary to study. A metro area
@@ -32,8 +40,8 @@ city:
   study_buffer_km: 12.0
 
 grid:
-  # H3 resolution. 8 ≈ 0.46 km^2 / cell (~460 m edge), good city scale.
-  # 9 ≈ 0.10 km^2 (finer, ~4x more cells, slower). 7 ≈ 5 km^2 (coarse).
+  # H3 resolution. 8 ≈ 0.74 km^2 / cell (~530 m edge), good city scale.
+  # 9 ≈ 0.105 km^2 (finer, ~7x more cells, slower). 7 ≈ 5.16 km^2 (coarse).
   h3_resolution: 8
 
 # Downtown / Central Business District.
@@ -216,6 +224,43 @@ metro:
   builtup_weights:
     poi_density:  0.5
     road_density: 0.5
+
+# --- Gridded population + Degree of Urbanisation -----------------------
+# WorldPop 100m constrained counts (~9.5 MB for PHL, downloaded once). Gives an
+# absolute, mapping-effort-independent urban signal and metro *population*, and
+# lets us apply the EU/UN/GHSL "Degree of Urbanisation" standard instead of a
+# bespoke rule. Thresholds are the standard's, defined on a 1 km² grid; an H3
+# res-8 hex is ~0.74-0.80 km², close enough to transfer directly.
+population:
+  enabled: true
+  raster_url: "https://data.worldpop.org/GIS/Population/Global_2000_2020_Constrained/2020/BSGM/PHL/phl_ppp_2020_UNadj_constrained.tif"
+  raster_file: "phl_ppp_2020_UNadj_constrained.tif"
+  cache_subdir: "pop_cache"
+  degurba:
+    urban_centre_density: 1500   # inhabitants / km²
+    urban_centre_min_pop: 50000
+    urban_cluster_density: 300
+    urban_cluster_min_pop: 5000
+    fill_gaps: true
+
+# --- Night-time lights -------------------------------------------------
+# Absolute, mapping-independent proxy for electrified/active land. Radiance is
+# an intensity, so cells take the MEAN of covering pixels (population is summed).
+nightlights:
+  enabled: true
+  # Preferred: a calibrated VIIRS GeoTIFF you supply — EOG VNL annual or NASA
+  # Black Marble VNP46A. Both sit behind a free login so they cannot be fetched
+  # unattended; drop the file in data/ntl_cache/ and name it here to use it.
+  raster_file: null
+  cache_subdir: "ntl_cache"
+  # Open fallback (no credentials): NASA GIBS Black Marble WMS. This is an 8-bit
+  # RGB visualisation — it saturates in bright cores and carries background
+  # glow, so it is a RELATIVE index for prototyping, not calibrated radiance.
+  gibs_url: "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi"
+  gibs_layer: "VIIRS_Black_Marble"
+  gibs_time: "2016-01-01"
+  gibs_deg_per_px: 0.00225   # ~250 m
+  gibs_max_px: 2048
 
 paths:
   data_dir: "data"
