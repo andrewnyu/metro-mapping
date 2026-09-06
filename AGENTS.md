@@ -30,10 +30,11 @@ Princesa to 182% for Iloilo City — the method must keep contracting for
 sprawling rural jurisdictions *and* expanding across LGU lines for
 conurbations). Any change to delineation should be checked against that spread.
 
-The next data layers under consideration are listed under "Roadmap" in
-`README.md`; electrification/grid and gridded population are Tier 1. Open data
+Gridded population (DEGURBA) and night-lights are now **prototyped but not
+wired into the pipeline** — see "Prototype findings" in `README.md`. They exist
+to de-bias the POI rule, whose weakness is uneven OSM mapping effort. Remaining
 gaps (Butuan returning 0 POIs; Ormoc/Tagbilaran administrative area resolving to
-a point buffer) are listed under "Known data gaps".
+a point buffer) are under "Known data gaps"; the wider layer list is "Roadmap".
 
 ## First Commands To Run
 
@@ -70,8 +71,16 @@ python scripts/export_webapp.py --places "Cebu City, Philippines"
 - `src/metro/pricing.py`: market-observation validation, city-grouped
   extra-trees training, score/area calibration, uncertainty bounds, and
   artifact inference.
+- `src/metro/population.py`: **(prototype)** WorldPop counts summed per H3 cell
+  + EU/UN/GHSL Degree of Urbanisation classifier. Not yet wired into the
+  pipeline — read-only so far.
+- `src/metro/nightlights.py`: **(prototype)** night-lights mean per H3 cell,
+  calibrated GeoTIFF if supplied else the open NASA GIBS WMS fallback. Also not
+  yet wired in.
 - `src/metro/pipeline.py`: cache paths and end-to-end glue.
 - `scripts/build_dataset.py`: CLI build/report path.
+- `scripts/prototype_population.py` / `scripts/prototype_nightlights.py`:
+  read-only comparisons of the raster layers against the POI-driven metro.
 - `scripts/export_webapp.py`: web app export contract and manifest writing.
 - `scripts/build_economic_reference.py`: builds the ignored economic reference
   from the sibling bank project, PSA seed, and optional canonical BLGF CSV.
@@ -129,6 +138,8 @@ it. These paths are normally gitignored:
 - `data/*_context_map_*.html`
 - `data/economic_features.csv`
 - `data/commercial_land_price_listings.csv`
+- `data/pop_cache/` (WorldPop raster, ~9.5 MB, downloaded once)
+- `data/ntl_cache/` (any calibrated night-lights GeoTIFF you supply)
 - `data/models/land_price_model.{joblib,json}`
 - `data/models/landvalue_weight_model.json`
 - `webapp/data/*.geojson`
@@ -145,6 +156,20 @@ so a bare `pytest` works — no `PYTHONPATH` needed:
 ```bash
 python -m pytest tests -q
 ```
+
+Raster-layer prototypes (read-only; they never touch exports). The first run
+downloads a ~9.5 MB WorldPop raster into `data/pop_cache/`:
+
+```bash
+python scripts/prototype_population.py                  # all manifest cities
+python scripts/prototype_population.py --detail "Zamboanga City"
+python scripts/prototype_nightlights.py --places "Cebu City" "Butuan City"
+```
+
+Sanity anchors: Cebu's DEGURBA urban-centre population should land near
+**2.86 M** (~2.85 M 2020 census) at IoU ~0.68 vs the POI metro, and Spearman
+ρ(night lights, log population density) should be ~0.73 for Cebu. If those move
+a lot, something regressed.
 
 Fast offline smoke test:
 
@@ -265,6 +290,20 @@ Expected browser behavior:
   `webapp/serve.py`: progress events use `{"frac": ..., "msg": ...}`, success
   uses `{"done": true, "city": ...}`, and failures use `{"error": ...}`.
 
+- Raster layers aggregate differently and it matters: **population is a per-pixel
+  count, so cells SUM** the pixels whose centre falls inside them; **night-light
+  radiance is an intensity, so cells take the MEAN**. Do not "unify" these into
+  one zonal helper.
+- Keep the `city.country_bbox` guard in `data._reject_out_of_country`. Ambiguous
+  PH names geocode abroad — "San Carlos City, Negros Occidental, Philippines"
+  resolved to San Carlos, Cojedes, **Venezuela**, and the pipeline analysed it
+  silently until the population raster had no data there. The guard makes the
+  `which_result` loop keep searching for a Philippine match.
+- Night lights are source-agnostic on purpose. A calibrated VIIRS GeoTIFF in
+  `data/ntl_cache/` (EOG VNL or NASA VNP46A) wins; otherwise it falls back to
+  the open GIBS Black Marble WMS, which is an 8-bit **relative** visualisation.
+  Never apply absolute radiance thresholds to the GIBS fallback.
+
 ## Known Caveats
 
 - The unit suite covers economics, pricing, and web-manifest preservation;
@@ -296,11 +335,26 @@ Expected browser behavior:
 
 ## Good Next Tasks
 
-- Add `pyproject.toml` and installable package metadata.
-- Add unit tests around `landvalue.compute_land_value()`,
-  `landvalue.delineate_metro()`, manifest upsert, and H3 wrappers.
-- Add an integration test using `--synthetic`.
-- Add completed-sale/registry labels and more current commercial-lot markets.
-- Add network/travel-time accessibility using the road graph.
-- Improve mobile layout verification with Playwright once a browser test setup
-  exists.
+Highest value first — the top two come out of the raster prototypes.
+
+1. **Fix Butuan City.** It returns 0 POIs, so the POI rule reports no metro at
+   all, but the population raster finds a 31.2 km² urban centre of ~141k. That
+   makes it a fetch/boundary bug, not a rural city. Rebuild with `--rebuild`,
+   check the Overpass response and the resolved boundary, and pin an
+   `osm_id_fallback` if the geocode is the problem.
+2. **Wire the raster layers into delineation.** `population.py` and
+   `nightlights.py` are read-only prototypes today. The evidence says the POI
+   rule and DEGURBA fail in *opposite* directions (Butuan: POIs miss a real
+   city; Talibon: POIs invent a metro with no ≥50k cluster), so combine rather
+   than replace — e.g. urban = POI bar **OR** DEGURBA urban centre — and re-check
+   the metro/admin ratio spread in `ABSTRACT.md` afterwards.
+3. Fix Ormoc/Tagbilaran administrative area (boundary falls back to a point
+   buffer; pin an exact `osm_id`).
+4. Add `pyproject.toml` and installable package metadata.
+5. Add unit tests around `landvalue.compute_land_value()`,
+   `landvalue.delineate_metro()`, manifest upsert, and H3 wrappers.
+6. Add an integration test using `--synthetic`.
+7. Add network/travel-time accessibility using the road graph.
+8. Electricity layer proper: OSM `power=*` (substations, lines, plants) and
+   distribution-utility tariffs / SAIDI-SAIFI by franchise area.
+9. (Deferred) completed-sale/registry labels for the price model.
