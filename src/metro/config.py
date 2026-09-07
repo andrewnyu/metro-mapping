@@ -78,6 +78,18 @@ def normalise_osm_id(osm_id: str) -> str:
     raise ValueError("OSM ID must look like R123, W123, N123, or an OpenStreetMap URL")
 
 
+def fallback_osm_id(cfg: Config, place: str) -> str | None:
+    """Resolve pinned city boundaries consistently for every pipeline caller."""
+    def norm(value):
+        return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+    name = norm(place)
+    for key, osm_id in (cfg["city"].get("osm_id_fallbacks", {}) or {}).items():
+        key = norm(key)
+        if name == key or name.startswith(key + " "):
+            return normalise_osm_id(osm_id)
+    return None
+
+
 def _wrap(obj: Any) -> Any:
     if isinstance(obj, dict):
         return Config({k: _wrap(v) for k, v in obj.items()})

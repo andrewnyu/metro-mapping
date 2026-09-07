@@ -30,7 +30,7 @@ import geopandas as gpd  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from metro import grid, landvalue, mapviz, pipeline  # noqa: E402
-from metro.config import load_config, normalise_osm_id  # noqa: E402
+from metro.config import load_config, normalise_osm_id, fallback_osm_id  # noqa: E402
 
 WEBAPP_DATA = Path(__file__).resolve().parents[1] / "webapp" / "data"
 
@@ -62,13 +62,7 @@ def _norm_place(place: str) -> str:
 
 
 def _fallback_osm_id(cfg, place: str) -> str | None:
-    fallbacks = cfg["city"].get("osm_id_fallbacks", {}) or {}
-    norm = _norm_place(place)
-    for key, osm_id in fallbacks.items():
-        key_norm = _norm_place(str(key))
-        if norm == key_norm or norm.startswith(key_norm + " "):
-            return str(osm_id)
-    return None
+    return fallback_osm_id(cfg, place)
 
 
 def _resolved_place(cfg, place: str) -> str:

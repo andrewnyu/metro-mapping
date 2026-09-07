@@ -58,7 +58,8 @@ def _cache_matches_city(gdf: gpd.GeoDataFrame, city: CityData) -> bool:
 def load_or_build_features(
     cfg: Config, rebuild: bool = False, force_synthetic: bool = False, progress=None
 ) -> tuple[gpd.GeoDataFrame, CityData]:
-    city = load_city_data(cfg, force_synthetic=force_synthetic, progress=progress)
+    city = load_city_data(cfg, use_cache=not rebuild,
+                          force_synthetic=force_synthetic, progress=progress)
     path = features_path(cfg, synthetic=force_synthetic)
     if path.exists() and not rebuild:
         if progress is not None:

@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import LineString, Point, Polygon
 
-from .config import Config, normalise_osm_id
+from .config import Config, normalise_osm_id, fallback_osm_id
 
 WGS84 = "EPSG:4326"
 
@@ -65,6 +65,8 @@ def load_city_data(cfg: Config, use_cache: bool = True, force_synthetic: bool = 
     if force_synthetic:
         _p(progress, 0.4, "Generating synthetic city…")
         return _synthetic_city(cfg)
+    if not cfg["city"].get("osm_id"):
+        cfg["city"]["osm_id"] = fallback_osm_id(cfg, cfg["city"]["place"])
     try:
         return _load_from_osm(cfg, use_cache=use_cache, progress=progress)
     except Exception as exc:  # network down, geocode miss, etc.
@@ -103,8 +105,12 @@ def _load_from_osm(cfg: Config, use_cache: bool, progress: ProgressFn = None) ->
 
     cached = all(f.exists() for f in (f_bound, f_pois, f_roads, f_water))
     if use_cache and cached:
+        try:
+            boundary = _coerce_city_boundary(gpd.read_parquet(f_bound), cfg)
+        except LookupError:
+            cached = False
+    if use_cache and cached:
         _p(progress, 0.6, "Loading cached city layers…")
-        boundary = gpd.read_parquet(f_bound)
         pois = gpd.read_parquet(f_pois)
         roads = gpd.read_parquet(f_roads)
         water = gpd.read_parquet(f_water)
@@ -210,7 +216,14 @@ def _coerce_city_boundary(gdf: gpd.GeoDataFrame, cfg: Config) -> gpd.GeoDataFram
     geom_type = gdf.geometry.iloc[0].geom_type
     cls = str(gdf["class"].iloc[0]) if "class" in gdf.columns else ""
     typ = str(gdf["type"].iloc[0]) if "type" in gdf.columns else ""
-    if cls == "boundary" and typ == "administrative":
+    if ("boundary_source" in gdf and gdf["boundary_source"].iloc[0] == "point_buffer"
+            and geom_type in {"Polygon", "MultiPolygon"}
+            and cls in {"boundary", "place"} and typ in {"administrative", "city", "town"}):
+        return gdf
+    address_type = str(gdf["addresstype"].iloc[0]) if "addresstype" in gdf.columns else ""
+    if address_type in {"city_district", "suburb", "neighbourhood", "quarter", "village"}:
+        raise LookupError(f"geocode matched a {address_type}, not a city boundary")
+    if cls == "boundary" and typ == "administrative" and geom_type in {"Polygon", "MultiPolygon"}:
         return gdf
     if geom_type == "Point" and cls in {"boundary", "place"} and typ in {"administrative", "city", "town"}:
         return _point_boundary(gdf, cfg)
@@ -315,7 +328,7 @@ def _fetch_pois_by_category(
     ox, study: Polygon, cfg: Config, first_failure: Exception | None = None
 ) -> gpd.GeoDataFrame:
     frames = []
-    failures = [first_failure] if first_failure is not None else []
+    failures = []
     for category, spec in cfg["poi_categories"].items():
         tags = dict(spec["tags"])
         try:
@@ -337,7 +350,7 @@ def _fetch_pois_by_category(
                 crs=WGS84,
             )
         )
-    if not frames and len(failures) == len(cfg["poi_categories"]):
+    if len(failures) == len(cfg["poi_categories"]):
         raise failures[-1]
     if not frames:
         return gpd.GeoDataFrame(

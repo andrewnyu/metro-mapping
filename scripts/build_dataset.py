@@ -23,7 +23,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Build metro-mapping feature table.")
     ap.add_argument("--place", help="Override city.place (OSM geocodable name).")
     ap.add_argument("--resolution", type=int, help="Override H3 resolution.")
-    ap.add_argument("--rebuild", action="store_true", help="Ignore cached features.")
+    ap.add_argument("--rebuild", action="store_true", help="Rebuild OSM layers, features, and raster aggregates.")
     ap.add_argument("--synthetic", action="store_true", help="Force synthetic data.")
     args = ap.parse_args()
 

@@ -20,6 +20,11 @@ city:
   # Keys are normalized, so "Puerto Princesa City" and "puerto princesa city"
   # both match.
   osm_id_fallbacks:
+    # Verified city relations; fuzzy search selected a district / mall.
+    ormoc city: "R5426241"
+    ormoc: "R5426241"
+    tagbilaran city: "R16062887"
+    tagbilaran: "R16062887"
     bacolod city: "R11349321"
     bacolod: "R11349321"
     puerto princesa city: "R9481097"
