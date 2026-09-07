@@ -26,15 +26,22 @@ headline result, and do not let price work block metro accuracy work.
 
 Read [`ABSTRACT.md`](ABSTRACT.md) first: it states the problem, the method, and
 the key result (the metro/administrative-area ratio spans 1.3% for Puerto
-Princesa to 182% for Iloilo City — the method must keep contracting for
+Princesa to 193.4% for Iloilo City (formerly 182%) — the method must keep
+contracting for
 sprawling rural jurisdictions *and* expanding across LGU lines for
 conurbations). Any change to delineation should be checked against that spread.
 
-Gridded population (DEGURBA) and night-lights are now **prototyped but not
-wired into the pipeline** — see "Prototype findings" in `README.md`. They exist
-to de-bias the POI rule, whose weakness is uneven OSM mapping effort. Remaining
-gaps (Butuan returning 0 POIs; Ormoc/Tagbilaran administrative area resolving to
-a point buffer) are under "Known data gaps"; the wider layer list is "Roadmap".
+Gridded population and night lights are now **integrated** through
+`src/metro/rasters.py`. Urban eligibility is the existing absolute OSM bar
+**OR** membership in a WorldPop/DEGURBA-inspired H3 urban centre. The same CBD
+connectivity, water bridges and separately flagged supported connectors apply.
+GIBS lights are diagnostic only. A calibrated VIIRS threshold may corroborate
+dense road cells, but defaults to null. Talibon remains an OSM-only footprint
+with no ≥50k population centre and is explicitly flagged in the app.
+
+Butuan's empty-POI failure and the incorrect Ormoc/Tagbilaran boundaries are
+repaired; see the integration findings in `README.md`. Rebuild now reloads OSM
+layers, features and raster aggregates (successful OSMnx HTTP caches are reused).
 
 ## First Commands To Run
 
@@ -71,16 +78,16 @@ python scripts/export_webapp.py --places "Cebu City, Philippines"
 - `src/metro/pricing.py`: market-observation validation, city-grouped
   extra-trees training, score/area calibration, uncertainty bounds, and
   artifact inference.
-- `src/metro/population.py`: **(prototype)** WorldPop counts summed per H3 cell
-  + EU/UN/GHSL Degree of Urbanisation classifier. Not yet wired into the
-  pipeline — read-only so far.
-- `src/metro/nightlights.py`: **(prototype)** night-lights mean per H3 cell,
-  calibrated GeoTIFF if supplied else the open NASA GIBS WMS fallback. Also not
-  yet wired in.
+- `src/metro/population.py`: WorldPop counts summed per H3 cell
+  + a DEGURBA-inspired classifier adapted to H3, used in delineation.
+- `src/metro/nightlights.py`: night-lights mean per H3 cell,
+  calibrated GeoTIFF if supplied else diagnostic NASA GIBS WMS brightness.
+- `src/metro/rasters.py`: pre-model integration and per-grid aggregate caching.
 - `src/metro/pipeline.py`: cache paths and end-to-end glue.
 - `scripts/build_dataset.py`: CLI build/report path.
 - `scripts/prototype_population.py` / `scripts/prototype_nightlights.py`:
-  read-only comparisons of the raster layers against the POI-driven metro.
+  read-only comparisons of combined delineation, the OSM-only baseline, and
+  raster evidence. The population script supports `--output-json <path>`.
 - `scripts/export_webapp.py`: web app export contract and manifest writing.
 - `scripts/build_economic_reference.py`: builds the ignored economic reference
   from the sibling bank project, PSA seed, and optional canonical BLGF CSV.
@@ -103,7 +110,11 @@ python scripts/export_webapp.py --places "Cebu City, Philippines"
 5. `features.build_features()` computes POI counts, road density, water mask,
    CBD, distance/accessibility fields, and attrs used by downstream reporting.
 6. Feature parquet is cached in `data/`.
-7. `landvalue.run_model()` recomputes the cheap model outputs every run:
+7. `rasters.attach_rasters()` adds population and night lights before the model.
+   Caches under `data/raster_cache/` fingerprint cell IDs, configuration and
+   source file identity/mtime. Enabled population failures stop real builds;
+   optional night-light failures are reported and retried. Synthetic builds
+   skip rasters entirely. `landvalue.run_model()` then recomputes:
    normalized components, `land_value_index`, `builtup_score`, `is_urban`, and
    `in_metro`. It uses a compatible learned positive-weight artifact when
    present, otherwise the transparent config weights.
@@ -140,6 +151,7 @@ it. These paths are normally gitignored:
 - `data/commercial_land_price_listings.csv`
 - `data/pop_cache/` (WorldPop raster, ~9.5 MB, downloaded once)
 - `data/ntl_cache/` (any calibrated night-lights GeoTIFF you supply)
+- `data/raster_cache/` (per-grid population counts and night-light means)
 - `data/models/land_price_model.{joblib,json}`
 - `data/models/landvalue_weight_model.json`
 - `webapp/data/*.geojson`
@@ -150,7 +162,7 @@ Keep `.gitkeep` files in generated directories.
 
 ## Verification Recipes
 
-Unit tests (11, offline, ~35s). `tests/conftest.py` puts `src/` on `sys.path`,
+Unit tests (30, offline, ~40s). `tests/conftest.py` puts `src/` on `sys.path`,
 so a bare `pytest` works — no `PYTHONPATH` needed:
 
 ```bash
@@ -167,7 +179,7 @@ python scripts/prototype_nightlights.py --places "Cebu City" "Butuan City"
 ```
 
 Sanity anchors: Cebu's DEGURBA urban-centre population should land near
-**2.86 M** (~2.85 M 2020 census) at IoU ~0.68 vs the POI metro, and Spearman
+**2.86 M** (~2.85 M 2020 census) at IoU ~0.68 vs the OSM-only metro (combined IoU ~0.75), and Spearman
 ρ(night lights, log population density) should be ~0.73 for Cebu. If those move
 a lot, something regressed.
 
@@ -245,7 +257,8 @@ Expected browser behavior:
 - If you touch metro delineation, keep it on an **absolute** urban bar, not a
   percentile of the city's own distribution — a relative cut caps the metro at a
   fixed fraction of any city and made Cebu far too small. A cell qualifies by
-  `metro.min_poi_per_cell`, or by `metro.min_road_km_per_cell` only when backed
+  `metro.min_poi_per_cell`, or by membership in a population urban centre,
+  or by `metro.min_road_km_per_cell` only when backed
   by `metro.min_establishment_access_for_road_cell`; this keeps rural road
   corridors inside huge city limits from ballooning the metro. Keep the metro as
   the contiguous component connected to the CBD. Preserve `metro.bridge_gap`,
@@ -255,7 +268,9 @@ Expected browser behavior:
   they attach a sizable nearby urban component, and must stay separately flagged
   for web-app highlighting/audit. Relative ranks (`builtup_score`, land-value)
   are for price/display only and must not decide the boundary.
-- Keep population/deposits/tax receipts explicitly area-level. They matter only
+- Keep **economic** population/deposits/tax receipts explicitly area-level.
+  Raster population is a separate cell-level count and boundary input.
+  The economic features matter only
   in a pooled multi-city price model and must be evaluated with city-grouped
   validation. Never report a random listing-row split as the primary score.
 - `relative_value_share` is proportional to `score * cell_area`. For PHP/m²,
@@ -306,8 +321,12 @@ Expected browser behavior:
 
 ## Known Caveats
 
-- The unit suite covers economics, pricing, and web-manifest preservation;
-  metro delineation still needs dedicated regression tests.
+- The browser overlays render, but the CARTO basemap currently displays an
+  API-key-required watermark. Basemap-provider configuration needs follow-up.
+
+- The unit suite covers economics, pricing, manifest preservation, urban
+  eligibility, water-versus-land bridges, raster sum/mean/cache behavior and
+  geocode/fetch failures. Full real-city accuracy still needs external validation.
 - First-time real OSM builds can be slow and require network access.
 - Public Overpass instances can refuse connections or hang. `config.yaml` has
   `osm.overpass_urls` fallbacks plus a shorter request timeout.
@@ -320,7 +339,9 @@ Expected browser behavior:
   `--rebuild`.
 - `config.yaml` includes hardcoded web-builder OSM ID fallbacks for names that
   fuzzy geocoding may match to the wrong object: Bacolod City (`R11349321`),
-  Puerto Princesa City (`R9481097`), and Zamboanga City (`R3617877`).
+  Puerto Princesa City (`R9481097`), Zamboanga City (`R3617877`),
+  San Carlos (`R145727`), Ormoc (`R5426241`) and Tagbilaran (`R16062887`).
+  These now apply to all pipeline callers, including CLI builds.
 - The Commercial Prices tab uses a trained advertised-price model, not a
   transaction-price appraisal. The pooled artifact currently has about PHP
   42,475/m² held-out-city MAE and 59.6% median percentage error. Prefer local
@@ -335,26 +356,14 @@ Expected browser behavior:
 
 ## Good Next Tasks
 
-Highest value first — the top two come out of the raster prototypes.
-
-1. **Fix Butuan City.** It returns 0 POIs, so the POI rule reports no metro at
-   all, but the population raster finds a 31.2 km² urban centre of ~141k. That
-   makes it a fetch/boundary bug, not a rural city. Rebuild with `--rebuild`,
-   check the Overpass response and the resolved boundary, and pin an
-   `osm_id_fallback` if the geocode is the problem.
-2. **Wire the raster layers into delineation.** `population.py` and
-   `nightlights.py` are read-only prototypes today. The evidence says the POI
-   rule and DEGURBA fail in *opposite* directions (Butuan: POIs miss a real
-   city; Talibon: POIs invent a metro with no ≥50k cluster), so combine rather
-   than replace — e.g. urban = POI bar **OR** DEGURBA urban centre — and re-check
-   the metro/admin ratio spread in `ABSTRACT.md` afterwards.
-3. Fix Ormoc/Tagbilaran administrative area (boundary falls back to a point
-   buffer; pin an exact `osm_id`).
-4. Add `pyproject.toml` and installable package metadata.
-5. Add unit tests around `landvalue.compute_land_value()`,
-   `landvalue.delineate_metro()`, manifest upsert, and H3 wrappers.
-6. Add an integration test using `--synthetic`.
-7. Add network/travel-time accessibility using the road graph.
-8. Electricity layer proper: OSM `power=*` (substations, lines, plants) and
-   distribution-utility tariffs / SAIDI-SAIFI by franchise area.
-9. (Deferred) completed-sale/registry labels for the price model.
+1. Validate the combined 17-city footprints against independent urban-area
+   references and commuting evidence. Talibon has no ≥50k population centre;
+   OR eligibility deliberately retains its OSM-only activity footprint.
+2. Supply calibrated VIIRS and validate a product-specific absolute threshold
+   before setting `metro.min_calibrated_ntl_for_road_cell`. GIBS is never an
+   absolute boundary input. Population and lights use different source years.
+3. Add `pyproject.toml` and installable package metadata.
+4. Extend water-mask and H3 grid-construction integration coverage.
+5. Add network/travel-time accessibility using the road graph.
+6. Electricity layer: OSM `power=*` and utility tariffs / SAIDI-SAIFI by area.
+7. (Deferred) completed-sale/registry labels for the price model.

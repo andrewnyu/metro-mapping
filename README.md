@@ -37,6 +37,12 @@ sizing. See [`ABSTRACT.md`](ABSTRACT.md) for the method and results summary.
   - road density
   - establishment gravity access
 - Drops mapped water and likely open-sea cells with a reachability rule.
+- Sums WorldPop 2020 population counts per cell and classifies DEGURBA-inspired
+  urban centres on the H3 lattice. Urban eligibility is OSM activity **OR** a
+  population centre, followed by the same CBD connectivity rule.
+- Attaches source-labelled mean night-light intensity. Relative NASA GIBS
+  imagery is diagnostic only; an optional calibrated VIIRS threshold can
+  corroborate dense road cells.
 - Computes an interpretable land-value proxy from normalized accessibility
   components.
 - Attaches metro bank deposits (PDIC/BSP), 2024 city population (PSA), and
@@ -279,6 +285,11 @@ small; if you add or rename a field, change it in `export_webapp.py`
   `study_km2` / `land_km2`, `source` (`osm` or `synthetic`), and
   `source_error`, economic summary fields, price-model status/diagnostics, and
   local-anchor fields (`price_anchor_*`, baseline source, and interval method).
+- City raster fields: `population_source`, `metro_population` (WorldPop counts
+  summed within the metro, separate from area-level economic `population`),
+  `n_urban_centre` (whole study area), `ntl_source` (`calibrated:<file>`,
+  `gibs_black_marble_relative`, `unavailable`, `disabled`, or `synthetic_skipped`),
+  and nullable `ntl_error`.
 - `components`: the five model component keys, in slider order.
 - `component_labels`: human labels for those five.
 - `weights_default`: default component weights (also the reset target).
@@ -303,6 +314,10 @@ small; if you add or rename a field, change it in `export_webapp.py`
 | `bs` | built-up score |
 | `mt` | in metro (0/1) |
 | `cn` | connector cell used to bridge a supported land gap (0/1) |
+| `ou` / `nu` | OSM urban eligibility / calibrated-lights-plus-roads eligibility (0/1) |
+| `pop` / `pd` | raster population count / population per km²; omitted when disabled or synthetic |
+| `uc` | membership in an H3 population urban centre (0/1) |
+| `ntl` | mean night-light intensity; interpretation comes from `ntl_source` |
 
 The land-value index is recomputed **in the browser** from `c0..c4` and the
 weight sliders (`Σ wᵢ·cᵢ / Σ wᵢ`, then min-max to 0-100), so tuning is instant
@@ -385,7 +400,8 @@ Important fields:
 - Downtown is detected from the smoothed built-up core, with road density
   carrying the signal when POI data is sparse.
 - A cell is **urban** by an absolute bar — enough establishments *or* a
-  dense-enough road grid with nearby establishment gravity — **not** a
+  dense-enough road grid with nearby establishment gravity, or membership in
+  a population urban centre — **not** a
   percentile of the city's own distribution. This keeps the metro from being
   capped at a fixed fraction of a city, while keeping rural road corridors in
   very large city limits out of the metro.
@@ -399,8 +415,10 @@ Important fields:
   so they can be highlighted and audited.
 - Relative land-value / density ranks are for **price prediction only**; the
   metro boundary never uses them.
-- Empty cells with no POIs or roads stay non-urban; rural/island portions stay
-  out unless they meet the absolute bar and connect to the core.
+- Population centres can qualify cells with missing OSM activity. All cells
+  must survive the land mask, and disconnected centres stay outside the metro.
+- An OR rule adds evidence; it does not veto OSM-only towns. The app flags study
+  areas with no ≥50k population centre (e.g. Talibon) for metropolitan-status review.
 
 ## Model Summary
 
@@ -539,7 +557,7 @@ footprint), not by ambition.
 **1. Electrification & grid infrastructure** *(topical: Visayas supply is
 constrained, and power is now a first-order siting constraint)*
 
-- *Night-time lights* — **✅ PROTOTYPED** (`src/metro/nightlights.py`,
+- *Night-time lights* — **integrated as supporting evidence** (`src/metro/nightlights.py`,
   `scripts/prototype_nightlights.py`). Zonal **mean** per H3 cell (radiance is
   an intensity, unlike population counts which are summed). Source-agnostic:
   it uses a calibrated VIIRS GeoTIFF if you supply one (EOG VNL / NASA
@@ -561,12 +579,13 @@ constrained, and power is now a first-order siting constraint)*
 - *Deprioritised:* live outage feeds — mostly unstructured social-media posts,
   high effort and low reliability.
 
-**2. Gridded population — ✅ PROTOTYPED** (`src/metro/population.py`,
+**2. Gridded population — integrated into delineation** (`src/metro/population.py`,
 `scripts/prototype_population.py`). WorldPop 100 m constrained counts for PHL
 (~9.5 MB, downloaded once) summed per H3 cell, plus the EU/UN/GHSL **Degree of
 Urbanisation** classifier (urban centre ≥1,500/km² & ≥50k; urban cluster
 ≥300/km² & ≥5k). Gives metro *population* and a citable standard alongside the
-bespoke POI rule. See "Prototype findings" below.
+OSM rule. This is an H3 adaptation, not the official 1 km² DEGURBA product.
+See "Prototype findings" below.
 
 **3. Built-up surface** — GHSL `GHS-BUILT-S` (100 m built-up fraction). Pairs
 with population for the Degree-of-Urbanisation method; another absolute signal.
@@ -588,8 +607,9 @@ with population for the Degree-of-Urbanisation method; another absolute signal.
 ### Tier 3 — engineering & rigour
 
 - Package with `pyproject.toml` so scripts can drop manual `sys.path` inserts.
-- Extend tests to H3 grid construction, the water/land mask, and delineation
-  (currently covered: economics, manifest, pricing, weight training).
+- Extend tests to H3 grid construction and the full water/land mask. Tests now
+  cover raster aggregation/caching, urban eligibility, gap connectivity, OSM
+  failure recovery, economics, manifest, pricing, and weight training.
 - Validate delineated footprints against an external reference (PSA urban
   barangay classification, or GHSL urban centres) and report agreement.
 
@@ -603,13 +623,21 @@ with population for the Degree-of-Urbanisation method; another absolute signal.
 
 ## Prototype findings — population & night lights
 
-Run them (read-only; they do not touch exports):
+The layers are now integrated; these commands remain read-only diagnostics.
+The population report shows summed H3 area, both combined and OSM-only IoU,
+administrative area, and metro/admin ratio (using the same smoothed polygon as
+the export). `--output-json /tmp/metro-comparison.json` saves
+an optional generated comparison report. Any failed city makes the check fail.
+
+Run them (they do not touch exports):
 
 ```bash
 python scripts/prototype_population.py                  # all manifest cities
 python scripts/prototype_population.py --detail "Zamboanga City"
 python scripts/prototype_nightlights.py --places "Cebu City" "Butuan City"
 ```
+
+**Historical prototype baseline (before integration and cache repairs).**
 
 **1. DEGURBA independently validates the metro.** For Cebu the urban-centre
 population comes out at **2.86 M** against a ~2.85 M 2020-census Metro Cebu —
@@ -629,7 +657,9 @@ from a completely different signal than the POI rule, which agrees at IoU 0.68.
 the POI rule sees *no city at all* — while population finds a 31 km² urban
 centre of 141k people. Conversely Talibon gets 55.6 km² from POIs but has no
 ≥50k high-density cluster, so DEGURBA correctly calls it a town, not a metro.
-The two rules fail in opposite directions; using both is the fix.
+The two signals disagree in opposite directions. The integrated OR rule
+recovers missed cells but does not remove OSM-only towns; those remain flagged
+for review rather than being silently labelled population-defined metros.
 
 **3. It caught a geocoding bug.** "San Carlos City, Negros Occidental,
 Philippines" was resolving to **San Carlos, Cojedes, Venezuela** (lng −68.6).
@@ -644,15 +674,52 @@ from the 8-bit GIBS fallback — a calibrated VNL raster should improve it.
 *Caveat:* the "bright cells outside metro" counter uses a 90th-percentile cut,
 so it always flags ~10% of cells and should not be read as pure error.
 
+## Integration findings (2026-09-06)
+
+- Butuan's boundary was correct: [OSM R14141553](https://www.openstreetmap.org/relation/14141553).
+  The empty cached POI layer was reproducible when the combined request and
+  every category retry failed: the first failure was included in an eight-item
+  counter, producing nine failures and bypassing the error check. Errors now
+  propagate to the next endpoint. A successful combined response yields **906
+  classified POIs**. `--rebuild` now reloads OSM layers as well as features and
+  raster aggregates; successful raw OSMnx HTTP caches remain reusable.
+- Ormoc had selected the **0.834 km² City Proper district**, not a point buffer;
+  Tagbilaran had selected **0.037 km² Island City Mall**. The pinned city
+  relations are [Ormoc R5426241](https://www.openstreetmap.org/relation/5426241)
+  and [Tagbilaran R16062887](https://www.openstreetmap.org/relation/16062887).
+  Pins apply to CLI and web builds. Cached geocodes are revalidated too.
+- Population and night lights run after OSM feature loading and before the
+  model. Aggregates in ignored `data/raster_cache/` are keyed by H3 cells,
+  settings and raster file identity/mtime. Population is **summed**, lights
+  are **averaged**. Raster files must be north-up EPSG:4326.
+- `population.enabled` and `nightlights.enabled` are now effective. Synthetic
+  builds skip both without network access. An enabled population-layer failure
+  stops a real build, so it cannot silently publish a different boundary.
+  Optional night-light failures are exposed as `ntl_source: unavailable` and
+  retried next run. If calibrated lights are configured as a boundary input,
+  their failure also stops the build.
+- `metro.min_calibrated_ntl_for_road_cell` defaults to null. Set it only after
+  validating a supplied VIIRS product; it corroborates the existing absolute
+  road bar. **GIBS never decides urban eligibility**, even with this setting.
+- Cebu retains **2,857,350** population-centre residents, **0.68 OSM-only IoU**,
+  and **0.73** night-light/population Spearman correlation. Combined IoU is
+  **0.75**. The ratio comparison and full 17-city table are in `ABSTRACT.md`.
+
 ## Known data gaps
 
-- **Butuan City** — 0 POIs and 0 metro cells; the POI fetch returns nothing.
-  Population confirms a real 141k urban centre is there, so this is a fetch/
-  boundary bug, not a rural city. Highest-priority fix.
-- **Ormoc City (0.8 km²) and Tagbilaran City (0.0 km²)** — administrative area
-  is wrong because the OSM boundary resolved to a point and fell back to a point
-  buffer. Pin an exact OSM relation ID via `city.osm_id` / `osm_id_fallbacks`.
-- ~~San Carlos City~~ — **fixed** (see finding 3 above).
-- **Surigao City (209 POIs)** — low POI count; metro extent may be
-  under-estimated. DEGURBA gives 16.4 km² / 91.5k against the POI rule's
-  20.5 km², so the two roughly agree here.
+- **Talibon** still has an OSM activity footprint with no ≥50k high-density
+  population centre. An OR rule cannot resolve this false-positive concern;
+  the app explicitly flags it. External urban-area validation remains needed.
+- **Surigao City (469 POIs after boundary-cache revalidation)** has sparse OSM
+  mapping; the population signal
+  provides an independent check, but the footprint still depends on the study
+  envelope and land mask.
+- WorldPop is a modelled 2020 population surface, and the open GIBS fallback is
+  a 2016 relative visualisation. Neither establishes current commuting flows.
+- Population centres are identified within the OSM-derived land grid and study
+  buffer; missing land cells and clipped clusters can still suppress evidence.
+- Butuan, Ormoc, Tagbilaran and San Carlos geocoding/fetch issues described above
+  are repaired. Other ambiguous place names still need boundary review.
+
+Browser follow-up: overlays render, but the CARTO basemap currently displays
+an API-key-required watermark. Basemap-provider configuration needs updating.
