@@ -30,10 +30,11 @@ MANIFEST = ROOT / "webapp" / "data" / "manifest.json"
 def analyse(cfg, place: str, osm_id: str | None) -> dict:
     cfg["city"]["place"] = place
     cfg["city"]["osm_id"] = osm_id
-    gdf, _ = pipeline.run(cfg)
-    gdf = population.add_population(cfg, gdf)
-    gdf = population.degurba(cfg, gdf)
-    gdf = nightlights.add_nightlights(cfg, gdf)
+    gdf, city = pipeline.run(cfg)
+    if city.source != "osm":
+        raise RuntimeError(f"Real OSM data required: {city.source_error}")
+    if "ntl" not in gdf:
+        raise RuntimeError(gdf.attrs.get("ntl_error", "Night lights disabled"))
 
     ntl = gdf["ntl"].astype(float)
     dens = gdf["pop_density_km2"].astype(float)
@@ -74,17 +75,23 @@ def main() -> None:
     print(f"{'City':22} {'ρ(NTL,logPop)':>14} {'NTL metro':>10} {'NTL rural':>10} "
           f"{'bright!∈metro':>13} {'metro':>7} {'UC':>6}")
     print("-" * 88)
+    failures = 0
+    s = {}
     for c in cities:
         try:
             s = analyse(cfg, c["place"], c.get("osm_id"))
         except Exception as e:
             print(f"{c['name'][:22]:22} ERROR {type(e).__name__}: {str(e)[:50]}")
+            failures += 1
             continue
         print(f"{c['name'][:22]:22} {s['rho']:14.2f} {s['ntl_metro']:10.1f} "
               f"{s['ntl_rural']:10.1f} {s['bright_outside_metro']:13d} "
               f"{s['metro_cells']:7d} {s['uc_cells']:6d}")
-    print(f"\nsource: {s['source'] if cities else 'n/a'}  "
+    print(f"\nsource: {s.get('source', 'n/a')}  "
           "(ρ = Spearman rank correlation of night lights vs log population density)")
+
+    if failures:
+        raise SystemExit("Night-light comparisons failed.")
 
 
 if __name__ == "__main__":

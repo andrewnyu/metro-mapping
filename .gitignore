@@ -19,3 +19,6 @@ venv/
 
 #Paper References
 references/
+
+# Per-grid raster aggregates (source/config fingerprinted)
+data/raster_cache/

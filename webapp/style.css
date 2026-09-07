@@ -156,3 +156,6 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
   #sidebar{width:100%;flex:0 0 auto;max-height:46vh;border-right:0;border-bottom:1px solid var(--line)}
   #detail{width:auto;left:16px;right:16px}
 }
+
+/* Population qualification note spans both summary columns. */
+.metro-note { grid-column: 1 / -1; font-size: 12px; line-height: 1.45; color: #6b5a32; padding: 6px 0; }

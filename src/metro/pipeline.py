@@ -16,6 +16,7 @@ from . import grid
 from . import economics
 from . import landvalue
 from . import pricing
+from . import rasters
 from .config import Config
 from .data import CityData, load_city_data
 
@@ -76,7 +77,7 @@ def load_or_build_features(
         if city.source == "osm" or force_synthetic:
             gdf.to_parquet(path)
     if progress is not None:
-        progress(1.0, "Ready")
+        progress(0.90, "OSM features ready")
     # Restore scalars into attrs for the model / reporting stages.
     if "cbd_lat" in gdf.columns:
         gdf.attrs["cbd"] = (float(gdf["cbd_lat"].iloc[0]), float(gdf["cbd_lng"].iloc[0]))
@@ -90,6 +91,9 @@ def run(cfg: Config, rebuild: bool = False, force_synthetic: bool = False, progr
     """Full pipeline returning the modelled cell GeoDataFrame + city layers."""
     gdf, city = load_or_build_features(
         cfg, rebuild=rebuild, force_synthetic=force_synthetic, progress=progress)
+    gdf = rasters.attach_rasters(
+        cfg, gdf, synthetic=city.source == "synthetic", rebuild=rebuild,
+        progress=(lambda f, m: progress(0.90 + f * 0.08, m)) if progress else None)
     gdf = landvalue.run_model(cfg, gdf)
     gdf = economics.attach_area_features(cfg, gdf)
     gdf = pricing.apply_price_model(cfg, gdf)

@@ -129,6 +129,14 @@ def export_city(
     ex["pc"] = gdf["poi_count"].astype(int).values
     ex["bs"] = gdf["builtup_score"].round(4).values
     ex["mt"] = gdf["in_metro"].astype(int).values
+    ex["ou"] = gdf["osm_urban"].astype(int).values
+    ex["nu"] = gdf["ntl_urban"].astype(int).values
+    if "population" in gdf:
+        ex["pop"] = gdf["population"].round(1).values
+        ex["pd"] = gdf["pop_density_km2"].round(1).values
+        ex["uc"] = gdf["is_urban_centre"].astype(int).values
+    if "ntl" in gdf:
+        ex["ntl"] = gdf["ntl"].round(2).values
     ex["cn"] = (
         gdf["is_connector"].astype(int).values
         if "is_connector" in gdf.columns else 0
@@ -206,6 +214,12 @@ def export_city(
         "metro_km2": r(metro_area, 1), "city_km2": r(city_area, 1),
         "study_km2": r(study_area, 1), "land_km2": r(land_area, 1),
         "source": city.source,
+        "population_source": gdf.attrs.get("population_source", "disabled"),
+        "metro_population": round(float(gdf.loc[gdf["in_metro"], "population"].sum()))
+        if "population" in gdf else None,
+        "n_urban_centre": int(gdf["is_urban_centre"].sum()) if "is_urban_centre" in gdf else None,
+        "ntl_source": gdf.attrs.get("ntl_source", "disabled"),
+        "ntl_error": gdf.attrs.get("ntl_error"),
         "source_error": city.source_error,
         "population": int(first["city_population"]) if pd.notna(first["city_population"]) else None,
         "bank_deposits_php": r(first["bank_deposits_php"], 0)

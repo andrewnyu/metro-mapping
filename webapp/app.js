@@ -303,6 +303,8 @@ function renderCityStats() {
     ["Priced metro cells", (CITY.n_price_cells || 0).toLocaleString()],
   ] : [
     ["Metro cells", nMetro.toLocaleString()],
+    ["Population (2020)", CITY.metro_population == null ? "—" : fmt(CITY.metro_population, 0)],
+    ["Centre cells", CITY.n_urban_centre == null ? "—" : fmt(CITY.n_urban_centre, 0)],
     ["Metro area", fmt(CITY.metro_km2, 0) + " km²"],
     ["Connectors", nConnectors.toLocaleString()],
     ["Land cells", CITY.n_land.toLocaleString()],
@@ -313,6 +315,9 @@ function renderCityStats() {
   $("#cityStats").innerHTML = stats.map(([k, v]) =>
     `<div class="mini-stat"><div class="k">${k}</div><div class="v">${v}</div></div>`
   ).join("");
+  if (state.view !== "prices" && CITY.n_urban_centre === 0) {
+    $("#cityStats").innerHTML += `<div class="metro-note">No ≥50,000-person high-density population centre in this study area. The footprint is supported by OSM activity; metropolitan status needs review.</div>`;
+  }
 }
 
 /* ---------------- colour + values ---------------- */
@@ -456,7 +461,12 @@ function renderDetail() {
           : "Indicative range",
         fmtMoney(p.plo) + "–" + fmtMoney(p.phi)) : "") +
       spatialStats
-    : spatialStats;
+    : (p.pop == null ? "" : stat("Population (2020)", fmt(p.pop, 0)) +
+      stat("People / km²", fmt(p.pd, 0)) +
+      stat("Population centre", p.uc ? "Yes" : "No")) +
+      stat("Urban evidence", [p.ou ? "OSM activity" : "", p.uc ? "Population" : "", p.nu ? "Calibrated lights + roads" : ""].filter(Boolean).join(" + ") || "Below urban bars") +
+      (p.ntl == null ? "" : stat(CITY.ntl_source?.startsWith("calibrated:")
+        ? "Night radiance" : "Night brightness (relative)", fmt(p.ntl, 1))) + spatialStats;
   $("#detailFoot").textContent = state.view === "prices"
     ? (CITY.price_model_status !== "trained"
       ? "Commercial price is withheld because this city lacks a supported metro footprint or matched bank-deposit evidence."
@@ -465,7 +475,7 @@ function renderDetail() {
       : CITY.price_market_baseline_source === "deposit_per_cell_comparable_cities"
       ? "Similar anchored cities set the baseline through bank deposits per land cell; the normalized score allocates it across metro cells."
       : "The ML model estimates the city baseline; the chart explains the normalized spatial multiplier.")
-    : "The chart explains the relative accessibility score used by the metro analysis.";
+    : "The boundary combines OSM activity and population centres connected to downtown. Relative accessibility scores only control display.";
   $("#detail").classList.remove("hidden");
   drawCompChart(p);
 }

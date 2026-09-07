@@ -218,6 +218,9 @@ metro:
   # non-urban land is not bridged, so mountain/rural gaps do not attach places
   # like Toledo to Metro Cebu.
   bridge_gap: 2
+  # Optional calibrated radiance corroboration for dense road cells.
+  # Leave null until validated against the supplied VIIRS product; GIBS is never used.
+  min_calibrated_ntl_for_road_cell: null
   # Connector cells are weak-but-supported land cells used only to attach a
   # meaningful nearby urban cluster to the CBD-connected metro. They are kept
   # separate from urban cells so the web app can highlight/audit them.
@@ -235,7 +238,8 @@ metro:
 # absolute, mapping-effort-independent urban signal and metro *population*, and
 # lets us apply the EU/UN/GHSL "Degree of Urbanisation" standard instead of a
 # bespoke rule. Thresholds are the standard's, defined on a 1 km² grid; an H3
-# res-8 hex is ~0.74-0.80 km², close enough to transfer directly.
+# res-8 implementation uses actual cell areas, but is an adaptation rather
+# than an official DEGURBA product.
 population:
   enabled: true
   raster_url: "https://data.worldpop.org/GIS/Population/Global_2000_2020_Constrained/2020/BSGM/PHL/phl_ppp_2020_UNadj_constrained.tif"

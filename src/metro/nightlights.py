@@ -67,6 +67,10 @@ def _from_raster(cfg: Config, gdf, path: Path) -> pd.Series:
     minx, miny, maxx, maxy = gdf.total_bounds
     pad = 0.02
     with rasterio.open(path) as src:
+        if src.crs != rasterio.crs.CRS.from_epsg(4326):
+            raise ValueError("Raster must use EPSG:4326 pixel coordinates")
+        if abs(src.transform.b) > 1e-12 or abs(src.transform.d) > 1e-12:
+            raise ValueError("Rotated rasters are not supported")
         want = from_bounds(minx - pad, miny - pad, maxx + pad, maxy + pad, src.transform)
         full = rasterio.windows.Window(0, 0, src.width, src.height)
         try:

@@ -25,10 +25,10 @@ The EU/UN/GHSL definition, applied on the H3 lattice:
   cluster totals >= 5,000 people.
 * **Rural**         — everything else.
 
-The reference grid is 1 km²; an H3 res-8 hexagon is ~0.74-0.80 km², close
-enough that the density thresholds transfer directly. A nice side effect of
-hexagons: neighbourhood is unambiguous, so the 4- vs 8-connectivity distinction
-in the raster definition disappears.
+This is an H3 adaptation of the thresholds, not an official DEGURBA product.
+The reference grid is 1 km²; H3 res-8 area varies with location. Thresholds
+use each cell's actual area. Hexagon adjacency and limited hole filling differ
+from the reference raster method, so results require independent validation.
 """
 from __future__ import annotations
 
@@ -94,6 +94,10 @@ def population_per_cell(cfg: Config, gdf, progress=None) -> pd.Series:
     if progress:
         progress(0.4, "Reading population raster…")
     with rasterio.open(path) as src:
+        if src.crs != rasterio.crs.CRS.from_epsg(4326):
+            raise ValueError("Raster must use EPSG:4326 pixel coordinates")
+        if abs(src.transform.b) > 1e-12 or abs(src.transform.d) > 1e-12:
+            raise ValueError("Rotated rasters are not supported")
         want = from_bounds(minx - pad, miny - pad, maxx + pad, maxy + pad,
                            src.transform)
         full = rasterio.windows.Window(0, 0, src.width, src.height)

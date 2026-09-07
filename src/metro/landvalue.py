@@ -173,7 +173,20 @@ def delineate_metro(cfg: Config, gdf):
     road_urban = gdf["road_density_km"] >= min_road
     if min_road_access > 0:
         road_urban &= gdf["establishment_access"] >= min_road_access
-    gdf["is_urban"] = (poi_urban | road_urban).values
+    gdf["osm_urban"] = (poi_urban | road_urban).values
+    population_urban = pd.Series(False, index=gdf.index)
+    if cfg.get("population", {}).get("enabled", False) and "is_urban_centre" in gdf:
+        population_urban = gdf["is_urban_centre"].fillna(False).astype(bool)
+    # Only calibrated radiance can corroborate a dense road cell. No default
+    # threshold is assumed: the supplied raster must be calibrated first.
+    lights_urban = pd.Series(False, index=gdf.index)
+    ntl_bar = m.get("min_calibrated_ntl_for_road_cell")
+    if (cfg.get("nightlights", {}).get("enabled", False)
+            and ntl_bar is not None and "ntl" in gdf
+            and gdf.attrs.get("ntl_source", "").startswith("calibrated:")):
+        lights_urban = (gdf["ntl"] >= float(ntl_bar)) & (gdf["road_density_km"] >= min_road)
+    gdf["ntl_urban"] = lights_urban.values
+    gdf["is_urban"] = (gdf["osm_urban"] | population_urban | lights_urban).values
 
     # Seed = downtown cell (or nearest urban cell to it).
     cbd_lat, cbd_lng = gdf.attrs.get("cbd", (gdf.lat.mean(), gdf.lng.mean()))
@@ -181,8 +194,7 @@ def delineate_metro(cfg: Config, gdf):
     seed = grid.latlng_to_cell(cbd_lat, cbd_lng, res)
     urban = set(gdf.index[gdf["is_urban"]])
     if seed not in urban and urban:
-        near = gdf.loc[list(urban)].sort_values("dist_cbd_km").index
-        seed = near[0]
+        seed = min(urban, key=lambda cell: (gdf.at[cell, "dist_cbd_km"], cell))
 
     bridge = int(m.get("bridge_gap", 2))
     land = set(gdf.index)
@@ -231,7 +243,7 @@ def _connector_cells(gdf, urban: set[str], metro_cells: set[str],
 def _components(cells: set[str]) -> list[set[str]]:
     seen: set[str] = set()
     out: list[set[str]] = []
-    for cell in cells:
+    for cell in sorted(cells):
         if cell in seen:
             continue
         comp = {cell}
@@ -252,8 +264,10 @@ def _nearest_supported_path(gdf, comp: set[str], connected: set[str],
                             land: set[str], urban: set[str], max_gap: int, m):
     best: tuple[int, list[str]] | None = None
     max_distance = max_gap + 1
-    for a in comp:
-        for b in connected:
+    # Stable tie-breaking prevents equal-length connectors changing across
+    # Python hash seeds, which otherwise changes reported metro population.
+    for a in sorted(comp):
+        for b in sorted(connected):
             try:
                 dist = grid.grid_distance(a, b)
             except Exception:
