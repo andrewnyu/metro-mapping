@@ -19,7 +19,8 @@ const metric = () => MAN.metrics.find(m => m.key === state.metric);
 init();
 
 async function init() {
-  MAN = await fetch("data/manifest.json").then(r => r.json());
+  // Generated city data changes independently of the application assets.
+  MAN = await fetch("data/manifest.json", { cache: "no-store" }).then(r => r.json());
   state.weights = MAN.components.map(c => MAN.weights_default[c]);
 
   refreshCitySelect();
@@ -55,19 +56,19 @@ function buildMap() {
       version: 8, sources: {},
       layers: [{ id: "bg", type: "background", paint: { "background-color": "#eaf0f6" } }],
     },
-    center: [123.9, 10.3], zoom: 10.5, attributionControl: true,
+    center: [123.9, 10.3], zoom: 10.5, attributionControl: { compact: false },
   });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
 
   map.on("load", () => {
     map.addSource("basemap", {
       type: "raster", tileSize: 256,
-      tiles: ["https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-              "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-              "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
-      attribution: "© OpenStreetMap © CARTO",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      maxzoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
     });
-    map.addLayer({ id: "basemap", type: "raster", source: "basemap" });
+    map.addLayer({ id: "basemap", type: "raster", source: "basemap",
+      paint: { "raster-saturation": -0.65, "raster-opacity": 0.85 } });
 
     map.addSource("water", { type: "geojson", data: emptyFC(), promoteId: "id" });
     map.addLayer({
@@ -152,8 +153,8 @@ async function loadCity(slug) {
   map.getSource("water").setData(emptyFC());
 
   const [cells, metro] = await Promise.all([
-    fetch("data/" + CITY.cells).then(r => r.json()),
-    fetch("data/" + CITY.metro).then(r => r.json()),
+    fetch("data/" + CITY.cells, { cache: "no-cache" }).then(r => r.json()),
+    fetch("data/" + CITY.metro, { cache: "no-cache" }).then(r => r.json()),
   ]);
   CELLS = cells; METRO = metro;
   map.getSource("cells").setData(CELLS);
@@ -309,12 +310,15 @@ function renderCityStats() {
     ["Connectors", nConnectors.toLocaleString()],
     ["Land cells", CITY.n_land.toLocaleString()],
     ["Water cells", (CITY.n_water ?? 0).toLocaleString()],
-    ["City area", fmt(CITY.city_km2, 0) + " km²"],
+    ["Boundary area", fmt(CITY.city_km2, 0) + " km²"],
     ["Study area", fmt(CITY.study_km2, 0) + " km²"],
   ];
   $("#cityStats").innerHTML = stats.map(([k, v]) =>
     `<div class="mini-stat"><div class="k">${k}</div><div class="v">${v}</div></div>`
   ).join("");
+  if (state.view !== "prices" && CITY.n_metro_edge > 0) {
+    $("#cityStats").innerHTML += `<div class="metro-note">The footprint reaches the study boundary (${CITY.n_metro_edge} edge cells). A wider study area may reveal further urban growth.</div>`;
+  }
   if (state.view !== "prices" && CITY.n_urban_centre === 0) {
     $("#cityStats").innerHTML += `<div class="metro-note">No ≥50,000-person high-density population centre in this study area. The footprint is supported by OSM activity; metropolitan status needs review.</div>`;
   }
@@ -575,13 +579,13 @@ function wireControls() {
 
 async function ensureWaterLoaded() {
   if (WATER || !CITY?.water) return;
-  WATER = await fetch("data/" + CITY.water).then(r => r.json()).catch(() => emptyFC());
+  WATER = await fetch("data/" + CITY.water, { cache: "no-cache" }).then(r => r.json()).catch(() => emptyFC());
   map.getSource("water").setData(WATER);
 }
 
 async function ensurePoisLoaded() {
   if (POIS || !CITY?.pois) return;
-  POIS = await fetch("data/" + CITY.pois).then(r => r.json()).catch(() => emptyFC());
+  POIS = await fetch("data/" + CITY.pois, { cache: "no-cache" }).then(r => r.json()).catch(() => emptyFC());
   map.getSource("pois").setData(POIS);
 }
 
@@ -624,7 +628,7 @@ function generateCity(place, osmId) {
     }
     if (d.done) {
       fill.style.width = "100%"; msg.textContent = "Loaded " + d.city.name;
-      MAN = await fetch("data/manifest.json?t=" + Date.now()).then(r => r.json());
+      MAN = await fetch("data/manifest.json", { cache: "no-store" }).then(r => r.json());
       refreshCitySelect(d.city.slug);
       await loadCity(d.city.slug);
       setTimeout(() => {
