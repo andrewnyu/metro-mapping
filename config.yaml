@@ -20,6 +20,28 @@ city:
   # Keys are normalized, so "Puerto Princesa City" and "puerto princesa city"
   # both match.
   osm_id_fallbacks:
+    # Second study-city extension. Laoag, Pagadian and Tandag are mapped as
+    # place nodes rather than city boundary relations, so they use the explicit
+    # point-buffer fallback documented under osm.point_boundary_km.
+    general santos city: "R14144757"
+    general santos: "R14144757"
+    dagupan pangasinan: "R13001749"
+    dagupan: "R13001749"
+    cauayan isabela: "R19646111"
+    laoag ilocos norte: "N317949136"
+    laoag: "N317949136"
+    lucena city: "R11124741"
+    lucena: "R11124741"
+    pagadian zamboanga del sur: "N965797331"
+    pagadian: "N965797331"
+    tandag surigao del sur: "N198522530"
+    tandag: "N198522530"
+    kidapawan cotabato: "R1513759"
+    kidapawan: "R1513759"
+    koronadal south cotabato: "R10903143"
+    koronadal: "R10903143"
+    tacurong sultan kudarat: "R20038093"
+    tacurong: "R20038093"
     # Additional study cities, verified against Nominatim city/region relations.
     metro manila: "R147488"
     legazpi city: "R3488060"
@@ -57,6 +79,16 @@ city:
   # rejected rather than silently analysed. Philippines, with a small margin.
   country_bbox: [116.0, 4.0, 127.5, 21.5]   # [min_lng, min_lat, max_lng, max_lat]
   place_aliases:
+    general santos city: "General Santos City, Philippines"
+    dagupan: "Dagupan, Pangasinan, Philippines"
+    cauayan isabela: "Cauayan, Isabela, Philippines"
+    laoag ilocos: "Laoag, Ilocos Norte, Philippines"
+    lucena city: "Lucena, Quezon, Philippines"
+    pagadian city: "Pagadian, Zamboanga del Sur, Philippines"
+    tandag city surigao del sur: "Tandag, Surigao del Sur, Philippines"
+    kidapawan city: "Kidapawan, Cotabato, Philippines"
+    koronadal city: "Koronadal, South Cotabato, Philippines"
+    tacurong city: "Tacurong, Sultan Kudarat, Philippines"
     metro manila: "Metro Manila, Philippines"
     legazpi: "Legazpi City, Albay, Philippines"
     naga: "Naga City, Camarines Sur, Philippines"
@@ -110,9 +142,9 @@ osm:
   overpass_rate_limit: false
   point_boundary_km: 8.0
   overpass_urls:
-    - "https://overpass-api.de/api"
+    - "https://maps.mail.ru/osm/tools/overpass/api"
     - "https://overpass.private.coffee/api"
-    - "https://overpass.openstreetmap.ru/api"
+    - "https://overpass-api.de/api"
 
 # --- Water / land mask -------------------------------------------------
 # Coastal PH cities have lots of grid cells over the sea. OSM stores inland

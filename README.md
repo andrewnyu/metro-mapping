@@ -781,3 +781,45 @@ CBD lies in the input boundary, population/OSM-only support, directed-road
 length inflation relative to unique geometry, and the effect of moving both
 POI and road bars by one. These are diagnostics, not accuracy scores. Read
 [`ALGORITHM_REVIEW.md`](ALGORITHM_REVIEW.md) for the interpretation and priorities.
+
+## Second city extension (2026-09-08)
+
+```bash
+python scripts/export_webapp.py --places \
+  "General Santos City" "Dagupan" "Cauayan Isabela" "Laoag Ilocos" \
+  "Lucena City" "Pagadian City" "Tandag City (Surigao del Sur)" \
+  "Kidapawan City" "Koronadal City" "Tacurong City"
+```
+
+| Core place | Admin/proxy area (km²) | Metro area (km²) | Metro / admin | Metro population | Edge cells |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| General Santos City | 672.1 | 302.5 | 45.0% | 629,514 | 0 |
+| Dagupan | 161.0 | 290.9 | 180.7% | 771,728 | 7 |
+| Cauayan, Isabela | 346.3 | 167.3 | 48.3% | 179,035 | 0 |
+| Laoag, Ilocos Norte | 200.7 | 302.6 | 150.8% | 289,520 | 0 |
+| Lucena | 225.8 | 137.3 | 60.8% | 428,760 | 0 |
+| Pagadian | 200.7 | 56.1 | 28.0% | 226,444 | 0 |
+| Tandag | 200.7 | 19.0 | 9.5% | 38,412 | 0 |
+| Kidapawan | 295.0 | 123.1 | 41.7% | 146,106 | 0 |
+| Koronadal | 277.4 | 214.5 | 77.3% | 247,238 | 0 |
+| Tacurong | 137.0 | 69.4 | 50.7% | 78,729 | 0 |
+
+Laoag, Pagadian and Tandag currently resolve to explicit OSM city nodes rather
+than administrative polygons, so their 200.7 km² denominators are the configured
+8 km point-buffer proxies. Cauayan and Tandag have no qualifying ≥50,000-person
+population centre and are flagged as OSM-only footprints. Dagupan has seven
+selected cells at the study-grid edge and is flagged as possibly clipped.
+
+## Static deployment
+
+The hosted app is a read-only explorer; city generation remains available from
+the local Python server. Stage only the current manifest and its referenced
+generated files, then deploy that directory:
+
+```bash
+python scripts/stage_vercel.py
+vercel --prod --yes --cwd /tmp/metro-mapping-vercel
+```
+
+This keeps generated GeoJSON out of Git while including it in the deployment.
+The app links to a concise methodology page at `/methodology`.

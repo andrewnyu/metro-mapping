@@ -89,6 +89,8 @@ python scripts/export_webapp.py --places "Cebu City, Philippines"
   read-only comparisons of combined delineation, the OSM-only baseline, and
   raster evidence. The population script supports `--output-json <path>`.
 - `scripts/export_webapp.py`: web app export contract and manifest writing.
+- `scripts/stage_vercel.py`: copies the static app and only manifest-referenced
+  generated files into `/tmp/metro-mapping-vercel` for Vercel deployment.
 - `scripts/audit_metros.py`: read-only signal, clipping, CBD, road-geometry and
   threshold-sensitivity diagnostics; see `ALGORITHM_REVIEW.md`.
 - `scripts/build_economic_reference.py`: builds the ignored economic reference
@@ -159,13 +161,14 @@ it. These paths are normally gitignored:
 - `data/models/landvalue_weight_model.json`
 - `webapp/data/*.geojson`
 - `webapp/data/manifest.json`
+- `/tmp/metro-mapping-vercel/` (disposable static deployment staging directory)
 - `scripts/__pycache__/`
 
 Keep `.gitkeep` files in generated directories.
 
 ## Verification Recipes
 
-Unit tests (44, offline, ~40s). `tests/conftest.py` puts `src/` on `sys.path`,
+Unit tests (54, offline, ~40s). `tests/conftest.py` puts `src/` on `sys.path`,
 so a bare `pytest` works — no `PYTHONPATH` needed:
 
 ```bash
@@ -296,7 +299,8 @@ Expected browser behavior:
 - Preserve place aliases and point-buffer fallback for city names that OSM does
   not expose as boundary polygons. Example: `surigao` maps to
   `Surigao City, Philippines`, which geocodes as a point and uses
-  `osm.point_boundary_km`.
+  `osm.point_boundary_km`. Laoag, Pagadian and Tandag also use exact city-node pins
+  and the same explicit proxy boundary.
 - If you change `config.yaml` structure, update `src/metro/config.py` only if
   the loader/helper semantics must change; most config consumers read dict keys
   directly.
@@ -346,7 +350,8 @@ Expected browser behavior:
   fuzzy geocoding may match to the wrong object: Bacolod City (`R11349321`),
   Puerto Princesa City (`R9481097`), Zamboanga City (`R3617877`),
   San Carlos (`R145727`), Ormoc (`R5426241`) and Tagbilaran (`R16062887`).
-  These now apply to all pipeline callers, including CLI builds.
+  Verified study-city relation/node pins are also listed there. These apply to
+  all pipeline callers, including CLI builds.
 - The Commercial Prices tab uses a trained advertised-price model, not a
   transaction-price appraisal. The pooled artifact currently has about PHP
   42,475/m² held-out-city MAE and 59.6% median percentage error. Prefer local

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -58,7 +59,7 @@ def r(x, n=4):
 
 
 def _norm_place(place: str) -> str:
-    return " ".join(place.lower().replace(",", " ").split())
+    return re.sub(r"[^a-z0-9]+", " ", place.lower()).strip()
 
 
 def _fallback_osm_id(cfg, place: str) -> str | None:

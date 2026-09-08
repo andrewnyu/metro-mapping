@@ -5,6 +5,16 @@ from scripts.export_webapp import _resolved_place
 
 
 @pytest.mark.parametrize('requested,canonical,osm_id', [
+    ('General Santos City', 'General Santos City, Philippines', 'R14144757'),
+    ('Dagupan', 'Dagupan, Pangasinan, Philippines', 'R13001749'),
+    ('Cauayan Isabela', 'Cauayan, Isabela, Philippines', 'R19646111'),
+    ('Laoag Ilocos', 'Laoag, Ilocos Norte, Philippines', 'N317949136'),
+    ('Lucena City', 'Lucena, Quezon, Philippines', 'R11124741'),
+    ('Pagadian City', 'Pagadian, Zamboanga del Sur, Philippines', 'N965797331'),
+    ('Tandag City (Surigao del Sur)', 'Tandag, Surigao del Sur, Philippines', 'N198522530'),
+    ('Kidapawan City', 'Kidapawan, Cotabato, Philippines', 'R1513759'),
+    ('Koronadal City', 'Koronadal, South Cotabato, Philippines', 'R10903143'),
+    ('Tacurong City', 'Tacurong, Sultan Kudarat, Philippines', 'R20038093'),
     ('Metro Manila', 'Metro Manila, Philippines', 'R147488'),
     ('Legazpi', 'Legazpi City, Albay, Philippines', 'R3488060'),
     ('Naga', 'Naga City, Camarines Sur, Philippines', 'R3084673'),

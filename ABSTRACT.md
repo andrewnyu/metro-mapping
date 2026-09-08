@@ -142,6 +142,6 @@ runs cannot change selected connector populations through Python set order.
 - These are built-up activity footprints, not measured commuting zones;
   functional metro claims still require travel-flow validation.
 
-For the subsequent nine-city extension and methodological audit, see
+For the subsequent city extensions and methodological audit, see
 [`ALGORITHM_REVIEW.md`](ALGORITHM_REVIEW.md). The review distinguishes the
 built-up footprint from a validated commuting-based functional urban area.
