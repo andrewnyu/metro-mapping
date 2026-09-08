@@ -2,7 +2,7 @@ import geopandas as gpd
 import pandas as pd
 import pytest
 
-from metro import grid, landvalue, population, rasters
+from metro import features, grid, landvalue, population, rasters
 from metro.config import load_config
 
 
@@ -31,6 +31,18 @@ def test_population_recovers_unmapped_core_without_crossing_rural_land():
     assert not out.osm_urban.any()
     cfg["population"]["enabled"] = False
     assert not landvalue.delineate_metro(cfg, g).in_metro.any()
+
+
+def test_cbd_detection_stays_inside_core_city_boundary():
+    cfg = load_config()
+    seed, g = cells_frame(4)
+    outside = next(c for c in g.index if grid.grid_distance(seed, c) == 4)
+    g.loc[outside, "road_density_km"] = 20
+    candidates = g.index == seed
+
+    assert features.detect_cbd(cfg, g, candidates) == pytest.approx(
+        grid.cell_to_latlng(seed)
+    )
 
 
 def test_absolute_poi_bar_and_corroborated_roads():

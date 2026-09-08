@@ -48,7 +48,11 @@ def _positive_rank01(s: pd.Series) -> pd.Series:
     return out
 
 
-def detect_cbd(cfg: Config, gdf: gpd.GeoDataFrame) -> tuple[float, float]:
+def detect_cbd(
+    cfg: Config,
+    gdf: gpd.GeoDataFrame,
+    candidate_mask: pd.Series | np.ndarray | None = None,
+) -> tuple[float, float]:
     """Downtown = peak of neighbourhood-smoothed built-up intensity.
 
     Honour a manual override from config if both lat/lng are set.
@@ -58,11 +62,21 @@ def detect_cbd(cfg: Config, gdf: gpd.GeoDataFrame) -> tuple[float, float]:
         return float(man["lat"]), float(man["lng"])
 
     cells = list(gdf.index)
+    candidates = np.ones(len(cells), dtype=bool)
+    if candidate_mask is not None:
+        candidates = np.asarray(candidate_mask, dtype=bool)
+        if len(candidates) != len(cells):
+            raise ValueError("CBD candidate mask must match the grid length")
+        if not candidates.any():
+            candidates[:] = True
     road = _positive_rank01(gdf["road_density_km"])
     poi = _positive_rank01(gdf["poi_weighted_density"])
     score = 0.8 * road + 0.2 * poi
-    if score.max() <= 0:
-        return float(gdf["lat"].mean()), float(gdf["lng"].mean())
+    if score[candidates].max() <= 0:
+        return (
+            float(gdf.loc[candidates, "lat"].mean()),
+            float(gdf.loc[candidates, "lng"].mean()),
+        )
 
     # Smooth over a 2-ring neighbourhood so a single cell spike doesn't win.
     idx = {c: i for i, c in enumerate(cells)}
@@ -71,7 +85,8 @@ def detect_cbd(cfg: Config, gdf: gpd.GeoDataFrame) -> tuple[float, float]:
     for i, c in enumerate(cells):
         nbrs = [idx[n] for n in grid.grid_disk(c, 2) if n in idx]
         smoothed[i] = vals[nbrs].mean() if nbrs else vals[i]
-    best = cells[int(np.argmax(smoothed))]
+    candidate_positions = np.flatnonzero(candidates)
+    best = cells[int(candidate_positions[np.argmax(smoothed[candidates])])]
     return grid.cell_to_latlng(best)
 
 
@@ -108,7 +123,14 @@ def build_features(cfg: Config, city: CityData, cells: list[str] | None = None,
 
     # --- CBD distance (downtown from POI density on the land grid) -----
     _p(0.94, "Detecting downtown & computing accessibility…")
-    cbd_lat, cbd_lng = detect_cbd(cfg, gdf)
+    cbd_candidates = None
+    if city.boundary is not None and not city.boundary.empty:
+        boundary = city.boundary.geometry.union_all()
+        centres = gpd.GeoSeries(
+            gpd.points_from_xy(gdf["lng"], gdf["lat"]), crs=WGS84, index=gdf.index
+        )
+        cbd_candidates = centres.covered_by(boundary).to_numpy()
+    cbd_lat, cbd_lng = detect_cbd(cfg, gdf, cbd_candidates)
     gdf["dist_cbd_km"] = haversine_km(gdf.lat.values, gdf.lng.values, cbd_lat, cbd_lng)
     gdf.attrs["cbd"] = (cbd_lat, cbd_lng)
 

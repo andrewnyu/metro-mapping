@@ -149,6 +149,10 @@ def export_city(
     # under the land grid prevents bays/rivers/open water from looking like
     # unexplained holes in the metro map.
     all_cells = set(grid.build_grid(city.study_region, cfg["grid"]["h3_resolution"]))
+    metro_edge_cells = sum(
+        any(n not in all_cells for n in grid.grid_disk(c, 1))
+        for c in gdf.index[gdf["in_metro"]]
+    )
     water_cells = sorted(all_cells - set(gdf.index))
     water_parts = []
     if water_cells:
@@ -211,6 +215,7 @@ def export_city(
         "pois": f"{slug}_pois.geojson", "water": f"{slug}_water.geojson",
         "n_land": int(len(gdf)), "n_water": int(gdf.attrs.get("n_water_excluded", 0)),
         "n_metro": n_metro, "n_connectors": n_connectors, "n_pois": int(len(city.pois)),
+        "n_metro_edge": metro_edge_cells,
         "metro_km2": r(metro_area, 1), "city_km2": r(city_area, 1),
         "study_km2": r(study_area, 1), "land_km2": r(land_area, 1),
         "source": city.source,

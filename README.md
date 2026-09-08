@@ -28,8 +28,8 @@ sizing. See [`ABSTRACT.md`](ABSTRACT.md) for the method and results summary.
 - Builds an H3 grid over a city boundary plus configurable buffer.
 - Fetches OpenStreetMap boundary, points of interest, roads, and water polygons
   with OSMnx.
-- Detects a downtown/CBD from smoothed weighted POI density unless manually
-  pinned in `config.yaml`.
+- Detects downtown/CBD from a two-ring smoothed mix of ranked road density
+  (80%) and ranked POI density (20%), unless manually pinned in `config.yaml`.
 - Computes per-cell spatial features:
   - distance to CBD
   - distance to nearest major road
@@ -287,7 +287,8 @@ small; if you add or rename a field, change it in `export_webapp.py`
   local-anchor fields (`price_anchor_*`, baseline source, and interval method).
 - City raster fields: `population_source`, `metro_population` (WorldPop counts
   summed within the metro, separate from area-level economic `population`),
-  `n_urban_centre` (whole study area), `ntl_source` (`calibrated:<file>`,
+  `n_urban_centre` (whole study area), `n_metro_edge` (metro cells on the outer
+  study-grid edge, shown as a possible-clipping notice), `ntl_source` (`calibrated:<file>`,
   `gibs_black_marble_relative`, `unavailable`, `disabled`, or `synthetic_skipped`),
   and nullable `ntl_error`.
 - `components`: the five model component keys, in slider order.
@@ -688,6 +689,9 @@ so it always flags ~10% of cells and should not be read as pure error.
   relations are [Ormoc R5426241](https://www.openstreetmap.org/relation/5426241)
   and [Tagbilaran R16062887](https://www.openstreetmap.org/relation/16062887).
   Pins apply to CLI and web builds. Cached geocodes are revalidated too.
+- Connection errors and timeouts now try the next Overpass endpoint directly;
+  category-by-category fallback remains for query/processing failures. This
+  avoids eight repeated network timeouts when a service is unavailable.
 - Population and night lights run after OSM feature loading and before the
   model. Aggregates in ignored `data/raster_cache/` are keyed by H3 cells,
   settings and raster file identity/mtime. Population is **summed**, lights
@@ -721,5 +725,59 @@ so it always flags ~10% of cells and should not be read as pure error.
 - Butuan, Ormoc, Tagbilaran and San Carlos geocoding/fetch issues described above
   are repaired. Other ambiguous place names still need boundary review.
 
-Browser follow-up: overlays render, but the CARTO basemap currently displays
-an API-key-required watermark. Basemap-provider configuration needs updating.
+The browser uses MapLibre with OpenStreetMap standard raster tiles (no API
+key or API-key watermark), desaturated beneath the H3 overlay. The visible
+OpenStreetMap contributor credit is required attribution. Browser caching and
+normal on-screen tile loading follow the [OSMF tile policy](https://operations.osmfoundation.org/policies/tiles/);
+there is no tile prefetch or offline download feature. The generated local
+manifest bypasses cache and GeoJSON revalidates on load so newly built cities
+appear immediately; those settings do not apply to remote basemap tiles. The shared public tile
+service is suitable for modest interactive use; use a dedicated provider or
+self-hosted tiles if traffic grows.
+
+
+## Additional study cities (2026-09-08)
+
+Verified relation pins and spelling/place aliases cover these nine additions.
+“Naga” means Naga City, Camarines Sur; “Illigan City” resolves to Iligan City.
+Pins for Naga, Valencia and San Fernando are province-specific so they do not
+capture namesakes in other provinces. Metro Manila uses the NCR region, not
+Manila City alone; its OSM boundary includes offshore water.
+
+```bash
+python scripts/export_webapp.py --places \
+  "Metro Manila" "Legazpi" "Naga" "Dipolog City" "Illigan City" \
+  "Valencia City, Bukidnon" "Kabankalan City, Negros" \
+  "San Fernando, Pampanga" "Baguio City"
+```
+
+| Core place | Admin area (km²) | Metro area (km²) | Metro / admin | Metro population | Edge cells |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Metro Manila | 907.0 | 1,537.4 | 169.5% | 20,618,191 | 54 |
+| Legazpi City | 236.5 | 87.5 | 37.0% | 253,254 | 0 |
+| Naga City | 79.6 | 119.1 | 149.6% | 396,959 | 0 |
+| Dipolog City | 419.2 | 66.3 | 15.8% | 159,668 | 0 |
+| Iligan City | 954.7 | 95.4 | 10.0% | 349,728 | 0 |
+| Valencia City, Bukidnon | 641.1 | 86.8 | 13.5% | 135,365 | 0 |
+| Kabankalan City | 686.1 | 25.2 | 3.7% | 41,418 | 0 |
+| San Fernando City, Pampanga | 75.7 | 622.3 | 822.1% | 1,719,777 | 17 |
+| Baguio City | 57.6 | 132.1 | 229.3% | 580,861 | 0 |
+
+The edge counts make the two largest-envelope results explicitly provisional.
+Kabankalan has no qualifying ≥50,000-person population centre, so its small
+footprint is an OSM-supported activity centre rather than population evidence
+of metropolitan status. Automatic CBD candidates stay inside the requested
+core boundary; this prevented San Fernando from seeding on a neighbouring
+centre, although its connected footprint still reaches the study edge.
+
+Audit saved metros without changing exports:
+
+```bash
+python scripts/audit_metros.py --output-json /tmp/metro-audit.json
+```
+
+The audit reports metro cells at the outer study-grid edge, whether the detected
+CBD lies in the input boundary, population/OSM-only support, directed-road
+length inflation relative to unique geometry, and the effect of moving both
+POI and road bars by one. These are diagnostics, not accuracy scores. Read
+[`ALGORITHM_REVIEW.md`](ALGORITHM_REVIEW.md) for the interpretation and priorities.

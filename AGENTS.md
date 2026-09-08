@@ -89,6 +89,8 @@ python scripts/export_webapp.py --places "Cebu City, Philippines"
   read-only comparisons of combined delineation, the OSM-only baseline, and
   raster evidence. The population script supports `--output-json <path>`.
 - `scripts/export_webapp.py`: web app export contract and manifest writing.
+- `scripts/audit_metros.py`: read-only signal, clipping, CBD, road-geometry and
+  threshold-sensitivity diagnostics; see `ALGORITHM_REVIEW.md`.
 - `scripts/build_economic_reference.py`: builds the ignored economic reference
   from the sibling bank project, PSA seed, and optional canonical BLGF CSV.
 - `scripts/train_price_model.py`: fits the PHP/m² market-baseline artifact from
@@ -108,7 +110,8 @@ python scripts/export_webapp.py --places "Cebu City, Philippines"
 4. `grid.build_grid()` fills the study region with H3 cells and adds a one-ring
    fringe to reduce edge clipping.
 5. `features.build_features()` computes POI counts, road density, water mask,
-   CBD, distance/accessibility fields, and attrs used by downstream reporting.
+   an automatic CBD constrained to the core-city boundary,
+   distance/accessibility fields, and attrs used by downstream reporting.
 6. Feature parquet is cached in `data/`.
 7. `rasters.attach_rasters()` adds population and night lights before the model.
    Caches under `data/raster_cache/` fingerprint cell IDs, configuration and
@@ -162,7 +165,7 @@ Keep `.gitkeep` files in generated directories.
 
 ## Verification Recipes
 
-Unit tests (30, offline, ~40s). `tests/conftest.py` puts `src/` on `sys.path`,
+Unit tests (44, offline, ~40s). `tests/conftest.py` puts `src/` on `sys.path`,
 so a bare `pytest` works — no `PYTHONPATH` needed:
 
 ```bash
@@ -238,7 +241,8 @@ Expected browser behavior:
   - any labels or metrics in the manifest
   - the "Web Data Contract" section in `README.md` (documents the compact
     property keys `c0..c4`, `ea`, `pwd`, `rdk`, `dcbd`, `pc`, `bs`, `mt`,
-    `rvs`, `ppsm`, `plo`, `phi` and the manifest fields the frontend reads)
+    `rvs`, `ppsm`, `plo`, `phi` and the manifest fields the frontend reads,
+  including `n_metro_edge` for the possible-clipping notice)
 - Keep `reference_data/commercial_land_top_market_anchors.json` separate from the
   cross-city training observations. It is a local calibration input, not a way
   to duplicate one city's rows inside the economic ML model.
@@ -321,8 +325,9 @@ Expected browser behavior:
 
 ## Known Caveats
 
-- The browser overlays render, but the CARTO basemap currently displays an
-  API-key-required watermark. Basemap-provider configuration needs follow-up.
+- The browser now uses OpenStreetMap standard raster tiles with visible
+  attribution and browser caching; no API key is needed. Do not reintroduce
+  CARTO's unauthenticated tiles, prefetch tiles, or hide contributor credit.
 
 - The unit suite covers economics, pricing, manifest preservation, urban
   eligibility, water-versus-land bridges, raster sum/mean/cache behavior and
@@ -356,7 +361,9 @@ Expected browser behavior:
 
 ## Good Next Tasks
 
-1. Validate the combined 17-city footprints against independent urban-area
+1. Address the directed-road double counting and POI feature identity issues
+   in `ALGORITHM_REVIEW.md`; recalibrate before replacing existing thresholds.
+   Validate the combined footprints against independent urban-area
    references and commuting evidence. Talibon has no ≥50k population centre;
    OR eligibility deliberately retains its OSM-only activity footprint.
 2. Supply calibrated VIIRS and validate a product-specific absolute threshold

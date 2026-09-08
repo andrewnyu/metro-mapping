@@ -21,9 +21,10 @@ hexagons (roughly 0.8 km² in the study cities, using actual cell areas). From
 OpenStreetMap we extract the administrative boundary,
 weighted points of interest, the drivable road network and water polygons.
 Cells over mapped water, and unreachable open-sea cells, are removed by a
-reachability rule. The central business district is detected as the peak of
-neighbourhood-smoothed weighted POI density, with a road-density fallback
-where POIs are sparse, rather than being pinned by hand. WorldPop 2020 pixel
+reachability rule. The central business district is detected from a two-ring
+smoothed score of 80% ranked road density and 20% ranked POI density, with
+automatic candidates restricted to the requested core-city boundary rather
+than being pinned by hand. WorldPop 2020 pixel
 counts are summed per cell; a DEGURBA-inspired H3 classifier identifies
 contiguous centres at ≥1,500 people/km² and ≥50,000 people, with limited gap
 filling. This adapts the thresholds to H3 rather than claiming equivalence to
@@ -91,6 +92,12 @@ Princesa (1.3%) and an expanding Iloilo (193.4%, previously 182%). Tagbilaran's
 52.8 km² city relation, rather than a 0.037 km² mall. Ormoc now uses its
 545.1 km² city relation rather than the 0.834 km² City Proper district.
 
+A subsequent nine-city extension preserves those original comparison anchors.
+It also exposes where the fixed 12 km study envelope is too tight: Metro Manila
+has 54 selected cells on the outer grid edge and San Fernando, Pampanga has 17.
+Those outputs are flagged as possibly clipped rather than interpreted as
+natural metro edges.
+
 Butuan's repaired Overpass fetch returns 906 classified POIs and a 132.1 km²
 combined footprint, recovering from zero. Its independent population centre
 remains 31.2 km² / 141,203 people. Cebu's population-centre estimate remains
@@ -134,3 +141,7 @@ runs cannot change selected connector populations through Python set order.
   envelope. Excluded cells and clipped clusters can suppress real centres.
 - These are built-up activity footprints, not measured commuting zones;
   functional metro claims still require travel-flow validation.
+
+For the subsequent nine-city extension and methodological audit, see
+[`ALGORITHM_REVIEW.md`](ALGORITHM_REVIEW.md). The review distinguishes the
+built-up footprint from a validated commuting-based functional urban area.
