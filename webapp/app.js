@@ -23,6 +23,12 @@ async function init() {
   MAN = await fetch("data/manifest.json", { cache: "no-store" }).then(r => r.json());
   state.weights = MAN.components.map(c => MAN.weights_default[c]);
 
+  // City generation needs the local Python server. Vercel serves the saved
+  // outputs as a static public explorer.
+  if (!["localhost", "127.0.0.1"].includes(location.hostname)) {
+    $("#addCityControl").classList.add("hidden");
+  }
+
   refreshCitySelect();
 
   // The tabs own the displayed metric. Metro delineation never depends on

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Methodology — Metro-Mapping</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="methodology.css?v=1" rel="stylesheet" />
+</head>
+<body>
+<main>
+  <nav><a href="index.html">← Explore the map</a></nav>
+  <p class="eyebrow">Metro-Mapping</p>
+  <h1>Drawing Philippine metro areas from open data</h1>
+  <p class="lead">City limits often miss the place people actually experience:
+    some Philippine cities contain large rural areas, while other urban regions
+    continue across several local-government boundaries. This project estimates
+    the connected built-up footprint around each city's centre.</p>
+
+  <section class="steps" aria-label="Method summary">
+    <article><span>1</span><h2>Divide the region</h2><p>The city boundary and a
+      12 km surrounding area are divided into H3 hexagons. Water cells are
+      removed.</p></article>
+    <article><span>2</span><h2>Identify urban cells</h2><p>A cell qualifies when
+      it crosses an absolute OpenStreetMap activity threshold or belongs to a
+      WorldPop high-density centre of at least 50,000 people.</p></article>
+    <article><span>3</span><h2>Connect the metro</h2><p>The result keeps the urban
+      cells connected to the detected city centre. Short water crossings can
+      be bridged, while ordinary rural gaps remain outside.</p></article>
+  </section>
+
+  <section class="evidence">
+    <div><strong>1.3%</strong><span>Puerto Princesa metro/admin ratio</span></div>
+    <div><strong>193%</strong><span>Iloilo metro/admin ratio</span></div>
+    <div><strong>2.86M</strong><span>Cebu high-density-centre population</span></div>
+  </section>
+
+  <section class="copy">
+    <h2>How to read the map</h2>
+    <p>The boundary is an exploratory built-up activity footprint. It is useful
+      for comparing the urban extent with administrative limits, but it is not
+      yet a commuting-based official metropolitan boundary. Results that reach
+      the study edge or lack a qualifying population centre are flagged in the
+      app.</p>
+    <p>Population counts are summed from WorldPop 2020. OpenStreetMap supplies
+      roads, establishments, administrative boundaries and water. Night lights
+      remain a diagnostic layer. Commercial land-price estimates are retained
+      as a separate experiment and are not part of the metro boundary.</p>
+  </section>
+
+  <div class="actions"><a class="primary" href="index.html">Explore 36 cities</a>
+    <a href="https://github.com/andrewnyu/metro-mapping">View source</a></div>
+</main>
+</body>
+</html>
