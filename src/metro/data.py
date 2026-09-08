@@ -22,6 +22,7 @@ from dataclasses import dataclass
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import requests
 from shapely.geometry import LineString, Point, Polygon
 
 from .config import Config, normalise_osm_id, fallback_osm_id
@@ -91,6 +92,8 @@ def _load_from_osm(cfg: Config, use_cache: bool, progress: ProgressFn = None) ->
     ox.settings.use_cache = True
     ox.settings.cache_folder = str(cfg.cache_dir / "osmnx")
     ox.settings.log_console = False
+    ox.settings.http_user_agent = cfg.get("osm", {}).get(
+        "http_user_agent", "Metro-Mapping/0.1 (+https://github.com/andrewnyu/metro-mapping)")
     ox.settings.requests_timeout = int(cfg.get("osm", {}).get("requests_timeout", 45))
     ox.settings.overpass_rate_limit = bool(cfg.get("osm", {}).get("overpass_rate_limit", False))
     ox.settings.overpass_url = _overpass_urls(cfg)[0]
@@ -251,6 +254,10 @@ def _fetch_pois(ox, study: Polygon, cfg: Config) -> gpd.GeoDataFrame:
     try:
         gdf = ox.features_from_polygon(study, _combined_poi_tags(cfg))
         return _pois_from_osm_features(gdf, cfg)
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        # Try another endpoint instead of spending eight more network timeouts
+        # here. Query/processing failures still use the category fallback.
+        raise
     except Exception as combined_exc:
         warnings.warn(
             f"Combined POI fetch failed ({type(combined_exc).__name__}: {combined_exc}); "

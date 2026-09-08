@@ -66,3 +66,11 @@ def test_rebuild_bypasses_city_layer_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline, "build_features", lambda *a, **kw: gpd.GeoDataFrame(geometry=[Point(125, 9)], crs=4326))
     pipeline.load_or_build_features(cfg, rebuild=True)
     assert load.call_args.kwargs["use_cache"] is False
+
+
+def test_network_timeout_skips_category_retry_cascade():
+    import requests
+    ox = SimpleNamespace(features_from_polygon=Mock(side_effect=requests.exceptions.ReadTimeout("timed out")))
+    with pytest.raises(requests.exceptions.ReadTimeout):
+        data._fetch_pois(ox, box(125, 8, 126, 9), load_config())
+    ox.features_from_polygon.assert_called_once()

@@ -20,6 +20,24 @@ city:
   # Keys are normalized, so "Puerto Princesa City" and "puerto princesa city"
   # both match.
   osm_id_fallbacks:
+    # Additional study cities, verified against Nominatim city/region relations.
+    metro manila: "R147488"
+    legazpi city: "R3488060"
+    legazpi: "R3488060"
+    naga city camarines sur: "R3084673"
+    naga camarines sur: "R3084673"
+    dipolog city: "R20372225"
+    dipolog: "R20372225"
+    iligan city: "R3818838"
+    iligan: "R3818838"
+    valencia city bukidnon: "R13437285"
+    valencia bukidnon: "R13437285"
+    kabankalan city: "R3740502"
+    kabankalan: "R3740502"
+    san fernando city pampanga: "R13263379"
+    san fernando pampanga: "R13263379"
+    baguio city: "R13946201"
+    baguio: "R13946201"
     # Verified city relations; fuzzy search selected a district / mall.
     ormoc city: "R5426241"
     ormoc: "R5426241"
@@ -39,6 +57,16 @@ city:
   # rejected rather than silently analysed. Philippines, with a small margin.
   country_bbox: [116.0, 4.0, 127.5, 21.5]   # [min_lng, min_lat, max_lng, max_lat]
   place_aliases:
+    metro manila: "Metro Manila, Philippines"
+    legazpi: "Legazpi City, Albay, Philippines"
+    naga: "Naga City, Camarines Sur, Philippines"
+    dipolog city: "Dipolog City, Zamboanga del Norte, Philippines"
+    illigan city: "Iligan City, Philippines"
+    iligan city: "Iligan City, Philippines"
+    valencia city bukidnon: "Valencia City, Bukidnon, Philippines"
+    kabankalan city negros: "Kabankalan City, Negros Occidental, Philippines"
+    san fernando pampanga: "San Fernando City, Pampanga, Philippines"
+    baguio city: "Baguio City, Philippines"
     surigao: "Surigao City, Philippines"
   # How far (km) beyond the official city boundary to study. A metro area
   # spills over its core city, so we analyse a buffered region.
@@ -51,8 +79,9 @@ grid:
 
 # Downtown / Central Business District.
 cbd:
-  # If lat/lng are null, the CBD is detected automatically as the peak of
-  # commercial-POI kernel density. Set them to pin it manually.
+  # If lat/lng are null, the CBD is detected automatically inside the core-city
+  # boundary from neighbourhood-smoothed road and POI intensity. Set them to
+  # pin it manually.
   lat: null
   lng: null
 
@@ -75,12 +104,14 @@ roads:
 osm:
   # OSMnx/Overpass endpoints. The first is the default; fallbacks help when a
   # public Overpass instance is temporarily down or refusing connections.
+  # Identify this application instead of sending OSMnx’s generic client name.
+  http_user_agent: "Metro-Mapping/0.1 (+https://github.com/andrewnyu/metro-mapping)"
   requests_timeout: 45
   overpass_rate_limit: false
   point_boundary_km: 8.0
   overpass_urls:
     - "https://overpass-api.de/api"
-    - "https://overpass.kumi.systems/api"
+    - "https://overpass.private.coffee/api"
     - "https://overpass.openstreetmap.ru/api"
 
 # --- Water / land mask -------------------------------------------------
