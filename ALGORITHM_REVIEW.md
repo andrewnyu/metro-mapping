@@ -54,8 +54,10 @@ For the original 17-city set, Cebu changes **+23.5% / −15.9%**, Iloilo
 **+59.4% / −69.6%**. These are changes in summed H3 metro area, not estimation
 errors or calibrated confidence intervals. The changes to two bars are
 substantial, so this is a stress test rather than a tiny-perturbation test.
-The second extension reinforces this concern: Tandag changes **+100% / −95.7%**,
-Tacurong **+124.6% / −29.4%**, and Cauayan **+306.2% / −37.5%**.
+The second extension reinforces this concern: Tandag changes **+100% / −95.7%**
+and Tacurong **+124.6% / −29.4%**. Cauayan was removed from the published app
+because it had no qualifying population urban centre and was highly
+threshold-sensitive.
 
 Next: report a stable core and a sensitivity fringe, test one parameter at a
 time, and calibrate against withheld cities. Repeat at multiple H3 resolutions:
@@ -77,7 +79,7 @@ method. WorldPop 2020 and GIBS 2016 also describe different dates.
 
 ### 4. OR eligibility cannot reject OSM-only false positives
 
-Talibon, Cauayan and Tandag remain OSM-supported without a qualifying ≥50k
+Talibon and Tandag remain OSM-supported without a qualifying ≥50k
 population centre. That could represent a town's useful activity footprint,
 but it does not establish metropolitan status. Similar disagreements in city
 fringes deserve inspection. A 90th-percentile night-brightness cut would not solve this: it

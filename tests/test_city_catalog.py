@@ -7,7 +7,8 @@ from scripts.export_webapp import _resolved_place
 @pytest.mark.parametrize('requested,canonical,osm_id', [
     ('General Santos City', 'General Santos City, Philippines', 'R14144757'),
     ('Dagupan', 'Dagupan, Pangasinan, Philippines', 'R13001749'),
-    ('Cauayan Isabela', 'Cauayan, Isabela, Philippines', 'R19646111'),
+    ('Tuguegarao', 'Tuguegarao, Cagayan, Philippines', 'R19570196'),
+    ('Cabanatuan, Nueva Ecija', 'Cabanatuan, Nueva Ecija, Philippines', 'R17796544'),
     ('Laoag Ilocos', 'Laoag, Ilocos Norte, Philippines', 'N317949136'),
     ('Lucena City', 'Lucena, Quezon, Philippines', 'R11124741'),
     ('Pagadian City', 'Pagadian, Zamboanga del Sur, Philippines', 'N965797331'),

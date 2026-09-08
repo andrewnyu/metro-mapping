@@ -168,7 +168,7 @@ Keep `.gitkeep` files in generated directories.
 
 ## Verification Recipes
 
-Unit tests (54, offline, ~40s). `tests/conftest.py` puts `src/` on `sys.path`,
+Unit tests (55, offline, ~40s). `tests/conftest.py` puts `src/` on `sys.path`,
 so a bare `pytest` works — no `PYTHONPATH` needed:
 
 ```bash
@@ -301,6 +301,9 @@ Expected browser behavior:
   `Surigao City, Philippines`, which geocodes as a point and uses
   `osm.point_boundary_km`. Laoag, Pagadian and Tandag also use exact city-node pins
   and the same explicit proxy boundary.
+- Tuguegarao (`R19570196`) and Cabanatuan (`R17796544`) use verified city
+  relations. Santiago, Isabela was deliberately left out of the published app
+  because OSM currently exposes only a city-centre node for it.
 - If you change `config.yaml` structure, update `src/metro/config.py` only if
   the loader/helper semantics must change; most config consumers read dict keys
   directly.

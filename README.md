@@ -786,7 +786,7 @@ POI and road bars by one. These are diagnostics, not accuracy scores. Read
 
 ```bash
 python scripts/export_webapp.py --places \
-  "General Santos City" "Dagupan" "Cauayan Isabela" "Laoag Ilocos" \
+  "General Santos City" "Dagupan" "Laoag Ilocos" \
   "Lucena City" "Pagadian City" "Tandag City (Surigao del Sur)" \
   "Kidapawan City" "Koronadal City" "Tacurong City"
 ```
@@ -795,7 +795,6 @@ python scripts/export_webapp.py --places \
 | --- | ---: | ---: | ---: | ---: | ---: |
 | General Santos City | 672.1 | 302.5 | 45.0% | 629,514 | 0 |
 | Dagupan | 161.0 | 290.9 | 180.7% | 771,728 | 7 |
-| Cauayan, Isabela | 346.3 | 167.3 | 48.3% | 179,035 | 0 |
 | Laoag, Ilocos Norte | 200.7 | 302.6 | 150.8% | 289,520 | 0 |
 | Lucena | 225.8 | 137.3 | 60.8% | 428,760 | 0 |
 | Pagadian | 200.7 | 56.1 | 28.0% | 226,444 | 0 |
@@ -806,9 +805,30 @@ python scripts/export_webapp.py --places \
 
 Laoag, Pagadian and Tandag currently resolve to explicit OSM city nodes rather
 than administrative polygons, so their 200.7 km² denominators are the configured
-8 km point-buffer proxies. Cauayan and Tandag have no qualifying ≥50,000-person
-population centre and are flagged as OSM-only footprints. Dagupan has seven
+8 km point-buffer proxies. Tandag has no qualifying ≥50,000-person population
+centre and is flagged as an OSM-only footprint. Dagupan has seven
 selected cells at the study-grid edge and is flagged as possibly clipped.
+
+Cauayan was removed from the published catalog on 2026-09-08. Its footprint had
+no qualifying population urban centre and changed sharply under the threshold
+stress test, so it was not reliable enough for the current app.
+
+## Northern Luzon city adjustment (2026-09-08)
+
+```bash
+python scripts/export_webapp.py --places \
+  "Tuguegarao" "Cabanatuan, Nueva Ecija" --rebuild
+```
+
+| Core place | Admin area (km²) | Metro area (km²) | Metro / admin | Metro population | Edge cells |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Tuguegarao | 121.7 | 67.0 | 55.1% | 189,883 | 0 |
+| Cabanatuan | 188.6 | 332.5 | 176.3% | 613,935 | 0 |
+
+Both use exact OSM administrative relations and contain qualifying WorldPop
+urban-centre cells. Santiago, Isabela was not added because OSM currently
+resolves it only to a city-centre point; using it would require an 8 km proxy
+boundary rather than a verified administrative polygon.
 
 ## Static deployment
 
